@@ -1,6 +1,6 @@
 const Immutable = require('immutable');
 
-type GetType = 'path' | 'view';
+//type GetType = "path" | "view";
 
 interface Request {
   id: number,
@@ -14,33 +14,36 @@ const createServer = (moltendb) => {
   let views = {};
   let data = {};
 
+  let socket;
+
   /**
    * @param {GetType} type Type of data to retrieve
    * @param {*} filter Filter for filtering the data
    * @param {Function} [callback] Callback function to run when data is
    *   retrieved or the retrieval fails. If parentRequestID is given and
    *   callback is false
+   * @param {boolean} subscribe Whether to subscribe to the data
    * @param {number} parentRequestID RequestID of a parent request.
    */
   const get = (type: string, filter: any,
-      callback?: boolean | ((error: Error, data: any) => any),
+      callback?: null | ((error: Error, data: any) => any),
       subscribe?: boolean, parentRequestID?: number): number | Promise => {
 
     if (callback) {
-      if (typeof subscribe === 'undefined') {
+      if (typeof subscribe !== 'boolean') {
         subscribe = true;
       }
 
-      if (subscribe || (parentRequestID && callback === false)) {
+      if (subscribe || (parentRequestID && callback === null)) {
         subscribe = nextRequestID++;
       }
     }
 
-    if (parentRequestID && callback === true) {
-      processGet(type, filter, true, true, subscribe);
+    if (parentRequestID && callback === null) {
+      processGet(type, filter, null, null, subscribe);
     } else if (typeof callback === 'function') {
       processGet(type, filter, (data) => { callback(undefined, data); },
-          (error) => { callback(error); }, subscribe);
+          (error) => { callback(error); }, subscribe, parentRequestID);
 
       return subscribe;
     } else {
@@ -63,7 +66,7 @@ const createServer = (moltendb) => {
    *   subscribe to the data
    */
   const processGet = (type: GetType, filter: any,
-      success: boolean | Function | number, failure?: boolean | Function,
+      success: null | Function | number, failure?: null | Function,
       requestID?: number, parentRequestID?: number): number | Promise => {
     let request,
         parentRequest;
@@ -159,8 +162,14 @@ const createServer = (moltendb) => {
   const unsubscribe = (requestID: number, unsubscribeChildren: boolean = true) => {
   };
 
-  // Setup socket
-  const socket = io.connect();
+  if (moltendb.options.socket) {
+    socket = moltendb.options.socket;
+  } else {
+    const io = require('socket.io-client');
+
+    // Setup socket
+    socket = io.connect(moltendb.options.sockAddress || window.location.origin);
+  }
 
   socket.on('web:data', receiveData);
 

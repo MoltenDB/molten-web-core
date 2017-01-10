@@ -22,6 +22,30 @@ const serverInterfaceTests = (server) => {
         expect(returnValue).toEqual(jasmine.any(Number));
       });
 
+      it('listens for `web:data` messages', () => {
+        let attachCount = 0;
+
+        // Create server instance with a mocked socket instance
+        const serverInstance = server({
+          options: {
+            socket: {
+              emit: () => {
+                callCount++
+              },
+              on: (message, handler) => {
+                if (message === 'web:data') {
+                  expect(handler).toEqual(jasmine.any(Function));
+                  attachCount++;
+                }
+              }
+            }
+          }
+        });
+
+        expect(attachCount).toBeGreaterThan(0);
+      });
+
+
       it ('returns a reference ID when callback given', () => {
         // Create server instance with a mocked socket instance
         const serverInstance = server({
@@ -89,28 +113,65 @@ const serverInterfaceTests = (server) => {
 
         serverInstance.get('path', {}).catch((error) => {
           expect(error).toEqual(jasmine.any(Error));
+          done();
         });
       });
 
-      it('calls the parent callback when a parentRequestID `true` as the callback is given', () => {
+      it('calls the parent callback when a parentRequestID `true` as the callback is given', (done) => {
         let callCount = 0;
+        let messageHandlers = {};
 
         const serverInstance = server({
           options: {
             socket: {
-              emit: () => {},
-              on: () => {}
+              emit: (message, data) => {
+                switch (message) {
+                  case 'web:query':
+                    let response = {
+                      paths: {},
+                      views: {
+                        dummy: {
+                        }
+                      }
+                    };
+
+                    response.paths[data.filter] = 'dummy';
+
+                    const handlers = messageHandlers['web:data'];
+
+                    if (typeof handlers !== 'undefined') {
+                      handlers.forEach((handler) => {
+                        handler(response);
+                      });
+                    }
+                    break;
+                }
+              },
+              on: (message, handler) => {
+                if (typeof messageHandlers[message] === 'undefined') {
+                  messageHandlers[message] = [];
+                }
+
+                messageHandlers[message].push(handler);
+              }
             }
           }
         });
 
         // Initial request
-        const parentRequestId = serverInstance.get('path', '/', (err, data) => {
+        const parentRequestId = serverInstance.get('path', '/dummy1', (err, data) => {
           callCount++;
+          if (err) {
+            fail(err);
+          }
+          if (data.paths['/dummy1']) {
+            expect(callCount).toEqual(2);
+            done();
+          }
         });
 
         // Second request
-        serverInstance.get('path', '/', null, null, parentRequestId);
+        serverInstance.get('path', '/dummy2', null, null, parentRequestId);
 
 
       });

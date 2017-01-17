@@ -1,5 +1,5 @@
 import clientServer from '../../lib/server';
-import { SocketIO, Server } from 'mock-socket';
+//import { SocketIO, Server } from 'mock-socket';
 
 const serverInterfaceTests = (server) => {
   describe('server interface', () => {
@@ -76,7 +76,36 @@ const serverInterfaceTests = (server) => {
         expect(returnValue).toEqual(jasmine.any(Promise));
       });
 
-      it('calls subscribe function on an error', () => {
+      it('throws an error when no parentRequestID is given when callback is an array', () => {
+        const serverInstance = server({
+          options: {
+            socket: {
+              emit: () => {},
+              on: () => {}
+            }
+          }
+        });
+
+        expect(serverInstance.get.bind(null, 'path', '/', []))
+            .toThrow(new Error('parentRequestID must be given with a keyPath'));
+      });
+
+      it('returns a reference ID when parentRequestId and keyPath given', () => {
+        const serverInstance = server({
+          options: {
+            socket: {
+              emit: () => {},
+              on: () => {}
+            }
+          }
+        });
+
+        const returnValue = serverInstance.get('path', '/', [], true, 1);
+
+        expect(returnValue).toEqual(jasmine.any(Number));
+      });
+
+      it('calls callback with the first parameter as the error on an error', () => {
         let callCount = 0,
             getError,
             getData;
@@ -90,7 +119,7 @@ const serverInterfaceTests = (server) => {
           }
         });
 
-        serverInstance.get('path', {}, (error, data) => {
+        serverInstance.get('path', {}, (error, data, keyPath) => {
           callCount++;
           getError = error;
           getData = data;
@@ -117,7 +146,18 @@ const serverInterfaceTests = (server) => {
         });
       });
 
-      it('calls the parent callback when a parentRequestID `true` as the callback is given', (done) => {
+      it('calls the callback with the initial data as the second parameter '
+          + 'and no keyPath on first call', (done) => {
+      });
+
+      it('calls the callback with the updated data as the second parameter '
+          + 'and the keyPath as the third parameter on data update', (done) => {
+      });
+
+      it('removes any child subscriptions when removing a subscription', (done) => {
+      });
+
+      it('calls the parent callback with the given keyPath when given', (done) => {
         let callCount = 0;
         let messageHandlers = {};
 
@@ -125,23 +165,29 @@ const serverInterfaceTests = (server) => {
           options: {
             socket: {
               emit: (message, data) => {
+                console.log('socket emit called', message, data);
                 switch (message) {
                   case 'web:query':
                     let response = {
                       paths: {},
                       views: {
                         dummy: {
+                          path: data.filter
                         }
                       }
                     };
 
                     response.paths[data.filter] = 'dummy';
+                    response.id = data.id;
 
                     const handlers = messageHandlers['web:data'];
 
                     if (typeof handlers !== 'undefined') {
                       handlers.forEach((handler) => {
-                        handler(response);
+                        console.log('calling handler for web:data');
+                        setTimeout(() => {
+                          handler(response);
+                        }, 0);
                       });
                     }
                     break;
@@ -159,12 +205,14 @@ const serverInterfaceTests = (server) => {
         });
 
         // Initial request
-        const parentRequestId = serverInstance.get('path', '/dummy1', (err, data) => {
+        const parentRequestId = serverInstance.get('path', '/dummy1', (err, data, keyPath) => {
+          console.log('!!!test callback called', err, data);
           callCount++;
           if (err) {
             fail(err);
           }
-          if (data.paths['/dummy1']) {
+
+          if (data.path === '/dummy2') {
             expect(callCount).toEqual(2);
             done();
           }

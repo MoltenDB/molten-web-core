@@ -1,4 +1,5 @@
 import clientServer from '../../lib/server';
+import createFakeServerOptions from '../helpers/socket';
 //import { SocketIO, Server } from 'mock-socket';
 
 const serverInterfaceTests = (server) => {
@@ -10,17 +11,16 @@ const serverInterfaceTests = (server) => {
         const serverInstance = server({
           options: {
             socket: {
-              emit: () => {
-                callCount++
+              emit: (message, data) => {
+                expect(message).toEqual(jasmine.any(String));
+                expect(data).toEqual(jasmine.any(Object));
               },
               on: () => {}
             }
           }
         });
-        const returnValue = serverInstance.get('path', '/', () => {});
-
-        expect(returnValue).toEqual(jasmine.any(Number));
-      });
+        serverInstance.get('path', '/', () => {});
+      }, 100);
 
       it('listens for `web:data` messages', () => {
         let attachCount = 0;
@@ -29,9 +29,7 @@ const serverInterfaceTests = (server) => {
         const serverInstance = server({
           options: {
             socket: {
-              emit: () => {
-                callCount++
-              },
+              emit: () => {},
               on: (message, handler) => {
                 if (message === 'web:data') {
                   expect(handler).toEqual(jasmine.any(Function));
@@ -45,8 +43,84 @@ const serverInterfaceTests = (server) => {
         expect(attachCount).toBeGreaterThan(0);
       });
 
+      describe('using Promises', () => {
+        it('returns a promise with requestID property when no callback is given', () => {
+          const serverInstance = server({
+            options: {
+              socket: {
+                emit: () => {},
+                on: () => {}
+              }
+            }
+          });
 
-      it ('returns a reference ID when callback given', () => {
+          const returnValue = serverInstance.get('path', '/');
+
+          expect(returnValue).toEqual(jasmine.any(Promise));
+        });
+
+        it('rejects on an error', (done) => {
+          const serverInstance = server({
+            options: {
+              socket: {
+                emit: () => {},
+                  on: () => {}
+              }
+            }
+          });
+
+          serverInstance.get('path', {}).catch((error) => {
+            expect(error).toEqual(jasmine.any(Error));
+            done();
+          });
+        });
+
+        it('resolves with the full data', (done) => {
+           const serverInstance = server(createFakeServerOptions());
+
+           // Initial request
+           const promise = serverInstance.get('path', '/dummy1');
+
+           expect(promise).toEqual(jasmine.any(Promise));
+
+           promise.then((data) => {
+             expect(data).toEqual(jasmine.any(Object));
+             expect(data.get('path')).toEqual('/dummy1');
+             done();
+           }).catch(fail);
+         });
+      });
+
+      describe('with a callback', () => {
+        it('calls callback with the first parameter as the error on an error', () => {
+          let callCount = 0,
+              getError,
+              getData;
+
+          const serverInstance = server({
+            options: {
+              socket: {
+                emit: () => {},
+                on: () => {}
+              }
+            }
+          });
+
+          serverInstance.get('path', {}, (error, data, keyPath) => {
+            callCount++;
+            getError = error;
+            getData = data;
+          });
+
+          expect(callCount).toEqual(1);
+          expect(getData).toBeUndefined();
+          expect(getError).toEqual(jasmine.any(Error));
+        });
+      });
+    });
+
+    describe('subscribe()', () => {
+      it ('returns a subscription ID when callback given', () => {
         // Create server instance with a mocked socket instance
         const serverInstance = server({
           options: {
@@ -56,24 +130,9 @@ const serverInterfaceTests = (server) => {
             }
           }
         });
-        const returnValue = serverInstance.get('path', '/', () => {});
+        const returnValue = serverInstance.subscribe('path', '/', () => {});
 
         expect(returnValue).toEqual(jasmine.any(Number));
-      });
-
-      it('returns a promise with requestID property when no callback is given', () => {
-        const serverInstance = server({
-          options: {
-            socket: {
-              emit: () => {},
-              on: () => {}
-            }
-          }
-        });
-
-        const returnValue = serverInstance.get('path', '/');
-
-        expect(returnValue).toEqual(jasmine.any(Promise));
       });
 
       it('throws an error when no parentRequestID is given when callback is an array', () => {
@@ -86,11 +145,11 @@ const serverInterfaceTests = (server) => {
           }
         });
 
-        expect(serverInstance.get.bind(null, 'path', '/', []))
+        expect(serverInstance.subscribe.bind(null, 'path', '/', []))
             .toThrow(new Error('parentRequestID must be given with a keyPath'));
       });
 
-      it('returns a reference ID when parentRequestId and keyPath given', () => {
+      it('returns a subscription ID when parentRequestId and keyPath given', () => {
         const serverInstance = server({
           options: {
             socket: {
@@ -100,7 +159,7 @@ const serverInterfaceTests = (server) => {
           }
         });
 
-        const returnValue = serverInstance.get('path', '/', [], true, 1);
+        const returnValue = serverInstance.subscribe('path', '/', [], 1);
 
         expect(returnValue).toEqual(jasmine.any(Number));
       });
@@ -119,7 +178,7 @@ const serverInterfaceTests = (server) => {
           }
         });
 
-        serverInstance.get('path', {}, (error, data, keyPath) => {
+        serverInstance.subscribe('path', {}, (error, data, keyPath) => {
           callCount++;
           getError = error;
           getData = data;
@@ -130,98 +189,90 @@ const serverInterfaceTests = (server) => {
         expect(getError).toEqual(jasmine.any(Error));
       });
 
-      it('promise rejects on an error', (done) => {
-        const serverInstance = server({
-          options: {
-            socket: {
-              emit: () => {},
-              on: () => {}
+      it('calls the callback with a <DataUpdates> array as the second '
+          + 'parameter on initial data load with the keyPath being an empty '
+          + 'array', (done) => {
+        const serverInstance = server(createFakeServerOptions());
+
+        // Initial request
+        const parentRequestId = serverInstance.subscribe('path', '/dummy1', (err, updates) => {
+          console.log('!!!test callback called', err, updates);
+          if (err) {
+            fail(err);
+          }
+
+          expect(updates).toEqual(jasmine.any(Array));
+          if (updates instanceof Array) {
+            expect(updates.length).toEqual(1);
+            if (updates.length) {
+              expect(updates[0].data).toEqual(jasmine.any(Object));
+              expect(updates[0].keyPath).toEqual(jasmine.any(Array));
+              expect(updates[0].keyPath.length).toEqual(0);
+              expect(updates[0].data.get('path')).toEqual('/dummy1');
             }
           }
-        });
-
-        serverInstance.get('path', {}).catch((error) => {
-          expect(error).toEqual(jasmine.any(Error));
           done();
         });
       });
 
-      it('calls the callback with the initial data as the second parameter '
-          + 'and no keyPath on first call', (done) => {
-      });
-
-      it('calls the callback with the updated data as the second parameter '
-          + 'and the keyPath as the third parameter on data update', (done) => {
-      });
-
-      it('removes any child subscriptions when removing a subscription', (done) => {
-      });
-
-      it('calls the parent callback with the given keyPath when given', (done) => {
-        let callCount = 0;
-        let messageHandlers = {};
-
-        const serverInstance = server({
-          options: {
-            socket: {
-              emit: (message, data) => {
-                console.log('socket emit called', message, data);
-                switch (message) {
-                  case 'web:query':
-                    let response = {
-                      paths: {},
-                      views: {
-                        dummy: {
-                          path: data.filter
-                        }
-                      }
-                    };
-
-                    response.paths[data.filter] = 'dummy';
-                    response.id = data.id;
-
-                    const handlers = messageHandlers['web:data'];
-
-                    if (typeof handlers !== 'undefined') {
-                      handlers.forEach((handler) => {
-                        console.log('calling handler for web:data');
-                        setTimeout(() => {
-                          handler(response);
-                        }, 0);
-                      });
-                    }
-                    break;
-                }
-              },
-              on: (message, handler) => {
-                if (typeof messageHandlers[message] === 'undefined') {
-                  messageHandlers[message] = [];
-                }
-
-                messageHandlers[message].push(handler);
-              }
-            }
-          }
-        });
+      it('calls the callback with a <DataUpdates> array as the second '
+          + 'parameter with an undefined value for data if the data '
+          + 'doesn\'t currently exist', (done) => {
+        const serverInstance = server(createFakeServerOptions());
 
         // Initial request
-        const parentRequestId = serverInstance.get('path', '/dummy1', (err, data, keyPath) => {
-          console.log('!!!test callback called', err, data);
+        const parentRequestId = serverInstance.subscribe('path', '/nothere', (err, updates) => {
+          console.log('!!!test callback called', err, updates);
+          if (err) {
+            fail(err);
+          }
+
+          expect(updates).toEqual(jasmine.any(Array));
+          if (updates instanceof Array) {
+            expect(updates.length).toEqual(1);
+            if (updates.length) {
+              expect(updates[0].data).toEqual(undefined);
+              expect(updates[0].keyPath).toEqual(jasmine.any(Array));
+              expect(updates[0].keyPath.length).toEqual(0);
+            }
+          }
+          done();
+        });
+      });
+
+      xit('calls the callback with a <DataUpdates> array as the second '
+          + 'parameter on a data update with the keyPath being a keyPath '
+          + 'array to the location of the data updated in the initial data',
+          (done) => {
+        let callCount = 0;
+        const serverInstance = server(createFakeServerOptions((message, data, response, emit, runHandlers) => {
+          console.log('emitCallback called', callCount, runHandlers);
+          if (callCount === 0) {
+            let newResponse = Object.assign({}, response);
+            newResponse.views.dummy.newVar = 'test';
+            runHandlers(newResponse);
+          }
+        }));
+
+        const parentRequestId = serverInstance.get('path', '/dummy1', (err, updates) => {
+          console.log('!!!test callback called', err, updates);
           callCount++;
           if (err) {
             fail(err);
           }
 
-          if (data.path === '/dummy2') {
-            expect(callCount).toEqual(2);
+          if (callCount === 2) {
+            expect(data).toEqual(jasmine.any(Object));
+            expect(data.get('path')).toEqual('/dummy1');
+            expect(data.get('newVar')).toEqual('test');
             done();
           }
         });
+      });
+    });
 
-        // Second request
-        serverInstance.get('path', '/dummy2', null, null, parentRequestId);
-
-
+    describe('unsubscribe()', () => {
+      xit('removes any child subscriptions when removing a subscription', (done) => {
       });
     });
   });

@@ -8,6 +8,13 @@ interface Request {
   subRequests?: number[]
 };
 
+type KeyPath = string[];
+
+type DataUpdates = {
+  keyPath: string[],
+  data: any
+}[];
+
 const createServer = (moltendb) => {
   let requests = {};
   let nextRequestID = 1;
@@ -24,6 +31,16 @@ const createServer = (moltendb) => {
 
   let socket;
 
+  const validateRequest = (type, filter) => {
+    switch (type) {
+      case 'path':
+        if (typeof filter !== 'string') {
+          return new Error('Path filter must be a string');
+        }
+        break;
+    }
+  };
+
   /**
    * Request data
    *
@@ -38,39 +55,71 @@ const createServer = (moltendb) => {
    *   returned. Otherwise a promise that will resolve to the requested data
    *   once that data has been retrieved will be returned.
    */
-  const get = (type: string, filter: any,
-      callback?: Array | ((error: Error, data: any) => any),
-      subscribe?: boolean, parentRequestID?: number): number | Promise => {
-
-    console.log('get called', callback, parentRequestID);
-
-    if (callback) {
-      if (typeof subscribe !== 'boolean') {
-        subscribe = true;
-      }
-    }
+  const subscribe = (type: string, filter: any,
+      callback: Array | ((error: Error, updates: DataUpdates) => any),
+      parentRequestID?: numbevr): number => {
+    let error,
+        requestID;
+    console.log('subscribe() called');
 
     if (callback instanceof Array && typeof parentRequestID === 'undefined') {
       throw new Error('parentRequestID must be given with a keyPath');
     }
 
-    if (subscribe
-        || (typeof parentRequestID !== 'undefined' && callback instanceof Array)) {
-      subscribe = nextRequestID++;
+    if ((error = validateRequest(type, filter))) {
+      if (typeof callback === 'function') {
+        callback(error);
+        return;
+      } else {
+        throw error;
+      }
     }
 
-    if (typeof parentRequestID !== 'undefined' && callback instanceof Array) {
-      processGet(type, filter, callback, null, subscribe, parentRequestID);
-    } else if (typeof callback === 'function') {
-      processGet(type, filter, (data) => { callback(undefined, data); },
-          (error) => { callback(error); }, subscribe, parentRequestID);
+    requestID = nextRequestID++;
+    
+    processGet(type, filter, callback, parentRequestID, requestID);
+
+    return requestID;
+  };
+
+  /**
+   * Request data
+   *
+   * @param {GetType} type Type of data to retrieve
+   * @param {*} filter Filter for filtering the data
+   * @param {Function|Array} [callback] Callback function to run when data is
+   *   retrieved or the retrieval fails. 
+   * @param {boolean} subscribe Whether to subscribe to the data
+   * @param {number} parentRequestID RequestID of a parent request.
+   *
+   * @returns {Promise|undefined} If a callback is given, nothing will be
+   *   returned. Otherwise a promise that will resolve to the requested data
+   *   once that data has been retrieved will be returned.
+   */
+  const get = (type: string, filter: any,
+      callback?: ((error: Error, updates: DataUpdates) => any),
+      ): Promise | undefined => {
+    let error;
+    console.log('get called', callback);
+
+    if ((error = validateRequest(type, filter))) {
+      if (callback) {
+        callback(error);
+        return;
+      } else {
+        return Promise.reject(error);
+      }
+    }
+
+    if (typeof callback === 'function') {
+      processGet(type, filter,
+          (data: any) => { callback(undefined, data); },
+          (error: Error) => { callback(error); });
     } else {
       return new Promise((fulfil, reject) => {
         processGet(type, filter, fulfil, reject);
       });
     }
-
-    return subscribe;
   };
 
   /**@internal
@@ -86,42 +135,29 @@ const createServer = (moltendb) => {
    *   subscribe to the data
    */
   const processGet = (type: GetType, filter: any,
-      success: null | Function | number, failure?: null | Function,
-      requestID?: number, parentRequestID?: number): number | Promise => {
+      success: KeyPath | Function, failure?: number | Function,
+      requestID?: number): number | Promise => {
     console.log('processGet', type, filter, success, requestID, parentRequestID);
     let request,
+        parentRequestID,
         parentRequest;
 
-    const subscribe = Boolean(requestID);
-
-    switch (type) {
-      case 'path':
-        if (typeof filter !== 'string') {
-          failure(new Error('Path filter must be a string'));
-          return;
-        }
-        break;
-    }
-
-    if (typeof success === 'number' || parentRequestID) {
-      parentRequestID = (typeof success === 'number' ? success : parentRequestID)
+    if (success instanceof Array && typeof failure === 'number') {
+      parentRequestID = failure;
       parentRequest = requests[parentRequestID];
       if (typeof parentRequest === 'undefined') {
         return;
       }
     }
 
-    if (!requestID) {
-      requestID = nextRequestID++;
-    }
 
     if (parentRequest) {
       request = {
         id: requestID,
         parentRequest: parentRequestID,
-        success: (typeof success === 'function' ? success : undefined),
-        failure: (typeof failure === 'function' ? failure : undefined),
-        subscribe,
+        callback: (typeof success === 'function' ? success : parentRequest.callback),
+        failure: (typeof success === 'function' ? success : parentRequest.failure),
+        keyPath: (success instanceof Array ? success : []),
         type,
         filter
       };
@@ -132,13 +168,22 @@ const createServer = (moltendb) => {
       }
 
       parentRequest.childRequests.push(requestID);
+    } else if (requestID) {
+      request = {
+        id: requestID,
+        callback: success,
+        failure: success,
+        keyPath: (success instanceof Array ? success : []),
+        type,
+        filter
+      };
     } else {
+      requestID = nextRequestID++;
       // Create new request object
       request = {
         id: requestID,
         success,
         failure,
-        subscribe,
         type,
         filter
       };
@@ -154,23 +199,22 @@ const createServer = (moltendb) => {
     console.log('checking cache');
     store.get(filter).then((value) => {
       console.log('got value', value);
-      if (typeof value === 'undefined') {
+      if (typeof value === 'undefined' || request.success) {
         sendQuery(request);
       } else {
         if (value === null) {
           // return undefiend
-          request.success();
+          request.callback(undefined, [{
+            keyPath: request.keyPath,
+            data: undefined
+          }]);
         } else {
           prepareView(paths[filter], request);
 
-          if (request.subscribe) {
-            request.lastUpdate = value.updated;
-          }
+          request.lastUpdate = value.updated;
         }
 
-        if (request.subscribe) {
-          sendQuery(request);
-        }
+        sendQuery(request);
       }
     });
   };
@@ -180,15 +224,16 @@ const createServer = (moltendb) => {
    *
    * @param {Request} request Request to send to server
    */
-  const sendQuery = (request: Request) => {
+  const sendQuery = (request: Request): undefined => {
     console.log('sendQuery called', request);
     requests[request.id] =  request;
     socket.emit('web:query', {
       id: request.id,
       type: request.type,
-      filter: request.filter
+      filter: request.filter,
+      subscribe: (request.callback ? true : false)
     });
-  }
+  };
 
 
   const receiveData = (data: Object) => {
@@ -238,13 +283,29 @@ const createServer = (moltendb) => {
     console.log('stored data', data);
     switch (request.type) {
       case 'path':
-        if (data.paths[request.filter]) {
+        if (data.paths[request.filter] === null) {
+          if (request.success) {
+            request.success();
+
+            delete requests[request.id];
+          } else {
+            request.callback(undefined, [{
+              keyPath: request.keyPath,
+              data: undefined
+            }]);
+          }
+        } else if (data.paths[request.filter]) {
           console.log('path');
           if (request.raw) {
-            request.success(data.paths[request.filter]);
+            if (request.success) {
+              request.success(data.paths[request.filter]);
 
-            if (!request.subscribe) {
               delete requests[request.id];
+            } else {
+              request.callback(undefined, [{
+                keyPath: request.keyPath,
+                data: data.paths[request.filter]
+              }]);
             }
           } else {
             const view = data.views[data.paths[request.filter]];
@@ -257,10 +318,15 @@ const createServer = (moltendb) => {
       case 'view':
         if (data.views[request.filter]) {
           if (request.raw) {
-            request.success(data.views[request.filter]);
+            if (reques.success) {
+              request.success(data.views[request.filter]);
 
-            if (!request.subscribe) {
               delete requests[request.id];
+            } else {
+              request.callback(undefined, [{
+                keyPath: request.keyPath,
+                data: data.views[request.filter]
+              }]);
             }
           } else {
             prepareView(data.views[request.filter], request);
@@ -273,16 +339,23 @@ const createServer = (moltendb) => {
   /**
    * Prepare view
    */
-  const prepareView = (view, request, views) => {
+  const prepareView = (view, request) => {
     console.log('previewView called', view, request);
+    const template = view.template;
     view = Immutable.fromJS(view);
 
-    // Get template
-    const template = view.template;
+
+    // Get template - TODO Need to fetch data for template and recursively fetch templates
     if (template) {
-      if (typeof views !== 'undefined'
-          && typeof views[template] !== 'undefined') {
-        view.set('templateView', Immutable.fromJS(views[template]));
+      if (typeof data.views[template] !== 'undefined') {
+        view.set('templateView', Immutable.fromJS(data.views[template]));
+      }
+    } else {
+      if (request.callback) {
+        request.callback(undefined, [{
+          keyPath: request.keyPath,
+          data: view
+        }]);
       }
     }
 
@@ -298,7 +371,11 @@ const createServer = (moltendb) => {
 
     // Response
     console.log('sending view to success callback');
-    request.success(view);
+    if (request.success) {
+      request.success(view);
+
+      delete requests[request.id];
+    }
   };
 
   /**
@@ -324,6 +401,7 @@ const createServer = (moltendb) => {
 
   return <ServerInstance>{
     get,
+    subscribe,
     unsubscribe
   };
 }

@@ -1,409 +1,219 @@
-const Immutable = require('immutable');
-import initStore from './store';
+import * as MDBWeb from '../typings/mdb-web';
+import localForage from 'localforage';
 
-//type GetType = "path" | "view";
-
-interface Request {
-  id: number,
-  subRequests?: number[]
+interface Subscription = {
+  type: MDBWeb,
+  options: MDBWeb.GetOptions,
+  handler: Function
 };
 
-type KeyPath = string[];
 
-type DataUpdates = {
-  keyPath: string[],
-  data: any
-}[];
+export const server = (instance: MDBWeb.Instance): MDBWeb.ServerInstance => {
+  const logger = instance.logger.id('server');
 
-const createServer = (moltendb) => {
-  let requests = {};
-  let nextRequestID = 1;
-  let paths = initStore('paths');
-  let views = initStore('views');
-  let tables = initStore('tables');
-  let items = initStore('items');
-
-  let subscriptions = {
-    paths: {},
-    views: {},
-    data: {}
+  let nextId = 0;
+  let subscriptions: { [id: number | string]: Subscription } = {};
+  let statusSubscriptions:  = {
+    connect: {},
+    'connect_error': {},
+    'connect_timeout': {},
+    reconnect: {},
+    'reconnect_attempt': {},
+    reconnecting: {},
+    'reconnect_error': {},
+    'reconnect_failed': {}
   };
+
+  // Create system databases
+  let paths = localForage.createInstance({ name: '' });
+  let views = localForage.createInstance({ name: '' });
+  let collections = localForage.createInstance({ name: '' });
+  let data: { [collection: string]: localForage.LocalForage } = {};
 
   let socket;
+  // Initiate the socket connection
+  if (instance.options.socket) {
+    socket = instance.options.socket;
+  } else {
+    let onBuffer = [];
+    let emitBuffer = [];
+    socket = {
+      on: (type: string, data: any): void => onBuffer.push({ type, data }),
+      emit: (type: string, data: any): void => emitBuffer.push({ type, data })
+    };
+    require.ensure('socket.io-client', () => {
+      socket = require('socket.io-client').connect(
+          instance.options.sockAddress || window.location.origin);
 
-  const validateRequest = (type, filter) => {
-    switch (type) {
-      case 'path':
-        if (typeof filter !== 'string') {
-          return new Error('Path filter must be a string');
-        }
-        break;
-    }
+      // Replay buffers
+      onBuffer.forEach((item) => io.on(item.type, item.data));
+      eachBuffer.forEach((item) => io.emit(item.type, item.data));
+    });
+  }
+
+  const eventName = (event: string) => {
+    return `${instance.options.eventBaseName}${event}`;
   };
 
-  /**
-   * Request data
-   *
-   * @param {GetType} type Type of data to retrieve
-   * @param {*} filter Filter for filtering the data
-   * @param {Function|Array} [callback] Callback function to run when data is
-   *   retrieved or the retrieval fails. 
-   * @param {boolean} subscribe Whether to subscribe to the data
-   * @param {number} parentRequestID RequestID of a parent request.
-   *
-   * @returns {Promise|number} If a callback is given, a request id will be
-   *   returned. Otherwise a promise that will resolve to the requested data
-   *   once that data has been retrieved will be returned.
-   */
-  const subscribe = (type: string, filter: any,
-      callback: Array | ((error: Error, updates: DataUpdates) => any),
-      parentRequestID?: numbevr): number => {
-    let error,
-        requestID;
-    console.log('subscribe() called');
-
-    if (callback instanceof Array && typeof parentRequestID === 'undefined') {
-      throw new Error('parentRequestID must be given with a keyPath');
-    }
-
-    if ((error = validateRequest(type, filter))) {
-      if (typeof callback === 'function') {
-        callback(error);
-        return;
-      } else {
-        throw error;
-      }
-    }
-
-    requestID = nextRequestID++;
-    
-    processGet(type, filter, callback, parentRequestID, requestID);
-
-    return requestID;
-  };
-
-  /**
-   * Request data
-   *
-   * @param {GetType} type Type of data to retrieve
-   * @param {*} filter Filter for filtering the data
-   * @param {Function|Array} [callback] Callback function to run when data is
-   *   retrieved or the retrieval fails. 
-   * @param {boolean} subscribe Whether to subscribe to the data
-   * @param {number} parentRequestID RequestID of a parent request.
-   *
-   * @returns {Promise|undefined} If a callback is given, nothing will be
-   *   returned. Otherwise a promise that will resolve to the requested data
-   *   once that data has been retrieved will be returned.
-   */
-  const get = (type: string, filter: any,
-      callback?: ((error: Error, updates: DataUpdates) => any),
-      ): Promise | undefined => {
-    let error;
-    console.log('get called', callback);
-
-    if ((error = validateRequest(type, filter))) {
-      if (callback) {
-        callback(error);
-        return;
-      } else {
-        return Promise.reject(error);
-      }
-    }
-
-    if (typeof callback === 'function') {
-      processGet(type, filter,
-          (data: any) => { callback(undefined, data); },
-          (error: Error) => { callback(error); });
-    } else {
-      return new Promise((fulfil, reject) => {
-        processGet(type, filter, fulfil, reject);
+  const statusHandler = (status: string) => () => {
+    logger.debug(`Socket ${status} event received`);
+    const subscriptionIds = Object.keys(statusSubscriptions[status]);
+    if (subscriptionIds.length) {
+      subscriptionIds.forEach((id) => {
+        statusSubscriptions[id]({
+          id,
+          status
+        });
       });
     }
   };
 
-  /**@internal
-   * Validates the get query and then initiates the retrieval of the data as
-   * required
+  /**
+   * Handler of responses from the server
    *
-   * @param {GetType} type Type of data to retrieve
-   * @param {*} filter Filter for filtering the data
-   * @param {Function | Request} success Function to call on successful
-   *   retrieval or previous requestID to make this request a child of
-   * @param {Function} [failure] Function to call on failure
-   * @param {number} [requestID] Request ID for the new request. If set will
-   *   subscribe to the data
+   * @param data Data received from the server
    */
-  const processGet = (type: GetType, filter: any,
-      success: KeyPath | Function, failure?: number | Function,
-      requestID?: number): number | Promise => {
-    console.log('processGet', type, filter, success, requestID, parentRequestID);
-    let request,
-        parentRequestID,
-        parentRequest;
-
-    if (success instanceof Array && typeof failure === 'number') {
-      parentRequestID = failure;
-      parentRequest = requests[parentRequestID];
-      if (typeof parentRequest === 'undefined') {
-        return;
-      }
+  const receiveQueryResult = (data: any) => {
+    // TODO Check for errors
+    if (data.code) {
     }
 
+    // TODO Cache the data
 
-    if (parentRequest) {
-      request = {
-        id: requestID,
-        parentRequest: parentRequestID,
-        callback: (typeof success === 'function' ? success : parentRequest.callback),
-        failure: (typeof success === 'function' ? success : parentRequest.failure),
-        keyPath: (success instanceof Array ? success : []),
-        type,
-        filter
-      };
+    let request;
+    let isSubscription = false;
 
-      // Add request to parent request
-      if (typeof parentRequest.childRequests === 'undefined') {
-        parentRequest.childRequests = [];
-      }
-
-      parentRequest.childRequests.push(requestID);
-    } else if (requestID) {
-      request = {
-        id: requestID,
-        callback: success,
-        failure: success,
-        keyPath: (success instanceof Array ? success : []),
-        type,
-        filter
-      };
+    // Find the handler
+    if (typeof subscriptions[data.id] !== 'undefined') {
+      isSubscription = true;
+      request = subscriptions[data.id];
+    } else if (typeof requests[data.id] !== 'undefined') {
+      request = requests[data.id];
     } else {
-      requestID = nextRequestID++;
-      // Create new request object
-      request = {
-        id: requestID,
-        success,
-        failure,
-        type,
-        filter
-      };
+      return;
     }
 
-    let store;
-    switch (type) {
-      case 'path':
-        store = paths;
-        break;
-    }
+      const subscription = subscriptions[data.id];
 
-    console.log('checking cache');
-    store.get(filter).then((value) => {
-      console.log('got value', value);
-      if (typeof value === 'undefined' || request.success) {
-        sendQuery(request);
-      } else {
-        if (value === null) {
-          // return undefiend
-          request.callback(undefined, [{
-            keyPath: request.keyPath,
-            data: undefined
-          }]);
-        } else {
-          prepareView(paths[filter], request);
+      if (subscription.type === 'view') {
+        // Cache the view paths if we retrieved a view
+        data.results.forEach((view) => {
+          if (view.paths) {
+            view.paths.forEach((path) => {
+              paths.setItem(path, view._id).then(
+                () => logger.debug(`Added path ${path} pointing to view ${view._id}`),
+                (error) => logger.error(`Couldn't add path ${path} pointing to view ${view._id}`)
+              );
+            });
+          }
+        });
 
-          request.lastUpdate = value.updated;
-        }
-
-        sendQuery(request);
+        // Return the queried view assuming it is the first view
+        subscription.handler(data.results[0]);
       }
-    });
+
+      // Cache the collection options
+      if (data.collectionOptions) {
+      }
+
+    } else if (typeof queries[id] !== 'undefined') {
+    }
   };
 
-  /**@internal
-   * Send query to server
-   *
-   * @param {Request} request Request to send to server
-   */
-  const sendQuery = (request: Request): undefined => {
-    console.log('sendQuery called', request);
-    requests[request.id] =  request;
-    socket.emit('web:query', {
-      id: request.id,
-      type: request.type,
-      filter: request.filter,
-      subscribe: (request.callback ? true : false)
-    });
-  };
+  // Add status handlers
+  socket.on('connect', statusHandler('connect'));
+  socket.on('connect_error', statusHandler('connect_error'));
+  socket.on('connect_timeout', statusHandler('connect_timeout'));
+  socket.on('reconnect', statusHandler('reconnect'));
+  socket.on('reconnect_attempt', statusHandler('reconnect_attempt'));
+  socket.on('reconnecting', statusHandler('reconnecting'));
+  socket.on('reconnect_error', statusHandler('reconnect_error'));
+  socket.on('reconnect_failed', statusHandler('reconnect_failed'));
 
+  // Add event handlers
+  socket.on(eventName('result'), receiveQueryResult);
 
-  const receiveData = (data: Object) => {
-    console.log('receiveData called', data);
-    // TODO Check security token
-    if (typeof data.id === 'undefined') {
-      return;
+  const subscribe = (type: MDBWeb.SubscriptionDataTypes,
+      options: MDBWeb.GetOptions, handler: Function): number => {
+    const id == nextId++;
+
+    switch(type) {
+      case 'serverStatus':
+        if (options && options.types) {
+          options.types.forEach((status) => {
+            if (statusSubscriptions[status]) {
+              statusSubscriptions[status][id] = handler;
+            }
+          });
+        } else {
+          Object.keys(statusSubscriptions).forEach((status) =>
+              statusSubscriptions[status][id] = handler);
+        }
+        return id;
+      case 'collection':
+        options = {
+          collection: options.collection
+        };
+        subscriptions[id] = {
+          type,
+          options,
+          handler
+        };
+
+        // Send request to server
+        // TODO Add option for subscription
+        socket.emit(eventName('query'), {
+          ...options,
+          id: id,
+          type: 'collection'
+        });
+        return;
+      case 'view':
+        options = {
+          collection: instance.options.viewCollection,
+          filter: options
+        }
+        break;
+      case 'data':
     }
 
-    console.log('here');
-    if (data.error) {
-      request.failure(data.error);
-      return;
-    }
-
-    const parts = {
-      paths,
-      views,
-      tables,
-      items
+    subscriptions[id] = {
+      type,
+      options,
+      handler
     };
 
-    // Store for future use
-    for (const part in parts) {
-      // Process data
-      if (typeof data[part] === 'object') {
-        for (const key in data[part]) {
-          if (data[part][key] !== null) {
-            parts[part].set(key, data[part][key]);
-
-            //TODO Subscriptions
-          }
-        }
-      }
-    }
-
-    // TODO Map out paths from views
-    console.log('looking for ', data.id, 'in', requests);
-
-    const request = requests[data.id];
-    if (typeof request === 'undefined') {
-      return;
-    }
-
-    let value;
-
-    console.log('stored data', data);
-    switch (request.type) {
-      case 'path':
-        if (data.paths[request.filter] === null) {
-          if (request.success) {
-            request.success();
-
-            delete requests[request.id];
-          } else {
-            request.callback(undefined, [{
-              keyPath: request.keyPath,
-              data: undefined
-            }]);
-          }
-        } else if (data.paths[request.filter]) {
-          console.log('path');
-          if (request.raw) {
-            if (request.success) {
-              request.success(data.paths[request.filter]);
-
-              delete requests[request.id];
-            } else {
-              request.callback(undefined, [{
-                keyPath: request.keyPath,
-                data: data.paths[request.filter]
-              }]);
-            }
-          } else {
-            const view = data.views[data.paths[request.filter]];
-            if (typeof view !== 'undefined') {
-              prepareView(view, request);
-            }
-          }
-        }
-        break;
-      case 'view':
-        if (data.views[request.filter]) {
-          if (request.raw) {
-            if (reques.success) {
-              request.success(data.views[request.filter]);
-
-              delete requests[request.id];
-            } else {
-              request.callback(undefined, [{
-                keyPath: request.keyPath,
-                data: data.views[request.filter]
-              }]);
-            }
-          } else {
-            prepareView(data.views[request.filter], request);
-          }
-        }
-        break;
-    }
+    // Send request to server
+    // TODO Add option for subscription
+    socket.emit(eventName('query'), {
+      ...options,
+      id: id,
+      type: 'read'
+    });
   };
 
   /**
-   * Prepare view
-   */
-  const prepareView = (view, request) => {
-    console.log('previewView called', view, request);
-    const template = view.template;
-    view = Immutable.fromJS(view);
-
-
-    // Get template - TODO Need to fetch data for template and recursively fetch templates
-    if (template) {
-      if (typeof data.views[template] !== 'undefined') {
-        view.set('templateView', Immutable.fromJS(data.views[template]));
-      }
-    } else {
-      if (request.callback) {
-        request.callback(undefined, [{
-          keyPath: request.keyPath,
-          data: view
-        }]);
-      }
-    }
-
-    // Get data
-    const data = view.data;
-    if (data) {
-      for (const key in data) {
-        switch (data[key].type) {
-          case 'moltendb':
-        }
-      }
-    }
-
-    // Response
-    console.log('sending view to success callback');
-    if (request.success) {
-      request.success(view);
-
-      delete requests[request.id];
-    }
-  };
-
-  /**
-   * Unsubscribe to receiving data for a request
+   * Removes a subscription from the subscriptions table
    *
-   * @param {number} requestID ID of request to unsubscribe
-   * @param {boolean} unsubscribeChildren If true, unsubscribe all children
-   *   of the given request
+   * @param id ID of subscription to remove
    */
-  const unsubscribe = (requestID: number, unsubscribeChildren: boolean = true) => {
+  const removeSubscription = (id: number) {
+    if (typeof subscriptions[id] !== 'undefined') {
+      delete subscriptions[id];
+    }
   };
 
-  if (moltendb.options.socket) {
-    socket = moltendb.options.socket;
-  } else {
-    const io = require('socket.io-client');
+  const unsubscribe = (id: number | Array<number>) => {
+    if (id instanceof Array) {
+      id.forEach(removeSubscription);
+    } else {
+      removeSubscription(id);
+    }
+  };
 
-    // Setup socket
-    socket = io.connect(moltendb.options.sockAddress || window.location.origin);
-  }
-
-  socket.on('web:data', receiveData);
-
-  return <ServerInstance>{
-    get,
+  return {
     subscribe,
     unsubscribe
   };
-}
-
-export default createServer;
+};
+export default serverNoWorker

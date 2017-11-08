@@ -1,10 +1,16 @@
 {
   "compileOnSave": true,
   "compilerOptions": {
-    "outDir": "./build",
+    "outDir": "./",
     "target": "es6",
     "noImplicitAny": false,
-    "jsx": "preserve",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "jsx": "react",
     "sourceMap": false
-  }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": []
 }

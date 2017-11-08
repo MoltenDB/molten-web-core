@@ -1,3 +1,0 @@
-
-export const MDB_ASYNC_LOADING = 'MDB_ASYNC_LOADING';
-export const MDB_ASYNC_LOADED = 'MDB_ASYNC_LOADED';

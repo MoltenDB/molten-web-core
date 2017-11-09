@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const React = require("react");
 const resolve_1 = require("./resolve");
+const utils_1 = require("../../lib/utils");
 /**
  * Renders the children of a component
  *
@@ -14,6 +15,9 @@ exports.renderChildren = (props) => {
     props.mdb.logger('renderChildren', 'debug', 'Rendering children', children);
     let renderedChildren = [];
     children.forEach((child, key) => {
+        if (typeof props.key !== 'undefined') {
+            key = utils_1.addKey(props.key, key);
+        }
         if (child instanceof Array) {
             renderedChildren = renderedChildren.concat(child);
         }
@@ -28,7 +32,7 @@ exports.renderChildren = (props) => {
                 // editing is enabled. It will therefore need to know if editing and
                 // the likes are enabled, so it will probably need props. What is the
                 // resolve function?
-                const resolved = resolve_1.resolveData(props, childi.$ref);
+                const resolved = resolve_1.resolveData(props, child.$ref);
                 if (typeof resolved === 'function') {
                     renderedChildren.push(resolved());
                 }
@@ -65,11 +69,13 @@ exports.renderChildren = (props) => {
  */
 exports.render = (props) => {
     const component = props.component;
+    const logger = props.mdb.logger;
     // Delegate to expression renderers
     if (component.expression) {
         // Check if we have a handler for the expression
+        logger('render', 'debug', 'Expressions available are', Object.keys(props.mdb.expressions));
         if (typeof props.mdb.expressions[component.expression] !== 'undefined') {
-            return expresions[component.expression].render(props);
+            return props.mdb.expressions[component.expression].render(props);
         }
         else {
             props.mdb.logger('render', 'error', `No expression handler for expression ${component.expression}`);
@@ -81,6 +87,6 @@ exports.render = (props) => {
     if (component.children) {
         children = exports.renderChildren(Object.assign({}, props, { children: component.children }));
     }
-    props.mdb.logger('render', 'debug', 'Rendering component', component, children);
+    logger('render', 'debug', 'Rendering component', component, children);
     return React.createElement(component.tag, Object.assign({}, component.attributes, { key: props.key }), children);
 };

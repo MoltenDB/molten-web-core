@@ -5,6 +5,7 @@ import * as MDB from 'molten-core';
 import * as MDBReact from '../../../typings/client';
 
 import { resolveData } from './resolve';
+import { addKey } from '../../lib/utils';
 
 interface MDBRenderProps extends MDBReact.ComponentProps {
   /// Component to be rendered
@@ -33,6 +34,9 @@ export const renderChildren = (props: MDBChidrenRenderProps): Array<React.Compon
   let renderedChildren = [];
 
   children.forEach((child, key) => {
+    if (typeof props.key !== 'undefined') {
+      key = addKey(props.key, key);
+    }
     if (child instanceof Array) {
       renderedChildren = renderedChildren.concat(child);
     } else if (typeof child !== 'object') {
@@ -45,7 +49,7 @@ export const renderChildren = (props: MDBChidrenRenderProps): Array<React.Compon
         // editing is enabled. It will therefore need to know if editing and
         // the likes are enabled, so it will probably need props. What is the
         // resolve function?
-        const resolved = resolveData(props, childi.$ref);
+        const resolved = resolveData(props, child.$ref);
         if (typeof resolved === 'function') {
           renderedChildren.push(resolved());
         } else {
@@ -86,12 +90,14 @@ export const renderChildren = (props: MDBChidrenRenderProps): Array<React.Compon
  */
 export const render = (props: MDBRenderProps): React.ComponentElement | Array<React.ComponentElement> => {
   const component = props.component;
+  const logger = props.mdb.logger;
 
   // Delegate to expression renderers
   if (component.expression) {
     // Check if we have a handler for the expression
+    logger('render', 'debug', 'Expressions available are', Object.keys(props.mdb.expressions));
     if (typeof props.mdb.expressions[component.expression] !== 'undefined') {
-      return expresions[component.expression].render(props);
+      return props.mdb.expressions[component.expression].render(props);
     } else {
       props.mdb.logger('render', 'error',
           `No expression handler for expression ${component.expression}`);
@@ -110,7 +116,7 @@ export const render = (props: MDBRenderProps): React.ComponentElement | Array<Re
     });
   }
 
-  props.mdb.logger('render', 'debug', 'Rendering component', component, children);
+  logger('render', 'debug', 'Rendering component', component, children);
   return React.createElement(component.tag, {
     ...component.attributes,
     key: props.key

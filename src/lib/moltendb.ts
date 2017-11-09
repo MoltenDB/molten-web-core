@@ -78,20 +78,24 @@ export const MoltenDB = (options: MDBReact.Options): Promise<MDBReact.Instance> 
       map[type.id] = type;
       return map;
     }, {}), options.types),
-    components: Object.assign(Object.keys(components).reduce((map, component) => {
+    components: Object.assign(Object.keys(components).reduce((map, key) => {
+      const component = components[key];
       map[component.id] = component;
       return map;
     }, {}), options.components),
-    expressions: Object.assign(Object.keys(expressions).reduce((map, expression) => {
+    expressions: Object.assign(Object.keys(expressions).reduce((map, key) => {
+      const expression = expressions[key];
       map[expression.id] = expression;
       return map;
     }, {}), options.expressions),
-    dataHandlers: Object.assign(Object.keys(dataHandlers).reduce((map, dataHandler) => {
+    dataHandlers: Object.assign(Object.keys(dataHandlers).reduce((map, key) => {
+      const dataHandler = dataHandlers[key];
       map[dataHandler.id] = dataHandler;
       return map;
     }, {}), options.dataHandlers),
-    functionLibraries: Object.assign(Object.keys(functionLibraries).reduce((map, functionLibrary) => {
-      map[type.id] = functionLibrary;
+    functionLibraries: Object.assign(Object.keys(functionLibraries).reduce((map, key) => {
+      const functionLibrary = functionLibrarys[key];
+      map[functionLibrary.id] = functionLibrary;
       return map;
     }, {}), options.functionLibraries)
   };
@@ -105,6 +109,8 @@ export const MoltenDB = (options: MDBReact.Options): Promise<MDBReact.Instance> 
   } else {
     instance.logger = attachId(console, true);
   }
+
+  instance.logger('MoltenDB', 'debug', 'instance is', instance);
 
   return new Promise((resolve, reject) => {
     let worker: Worker;

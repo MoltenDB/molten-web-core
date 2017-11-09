@@ -27,6 +27,7 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
     'reconnect_error': {},
     'reconnect_failed': {}
   };
+  let paths, views, collections;
 
   // Create system databases
   return Promise.all([
@@ -38,12 +39,33 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
       database: instance.options.cacheName,
       keyPath: '_id'
     })
-  ]).then(([views, collections]) => {
-    let data: { [collection: string]: BrowserStore.Instance } = {};
-    let paths = createTree({
+  ]).then(([viewsStore, collectionsStore]) => {
+    views = viewsStore;
+    collections = collectionsStore;
+    paths = createTree({
       parameterSeparator: ':'
     });
 
+
+    // Get the views from the cache to cache the paths
+    return views.get();
+  }).then((cachedViews) => {
+    console.log(cachedViews);
+
+    logger.debug(`Getting paths from cached views ${Object.keys(cachedViews).join(', ')}`);
+
+    Object.keys(cachedViews).forEach((viewId) => {
+      const view = cachedViews[viewId];
+
+      if (view.paths) {
+        paths.addPath(view.paths, view._id);
+        /*TODO view.paths.forEach((path) => {
+          paths.addPath(path, view._id);
+        });*/
+      }
+    });
+  }).then(() => {
+    let data: { [collection: string]: BrowserStore.Instance } = {};
     let socket;
     // Initiate the socket connection
     if (instance.options.socket) {
@@ -118,7 +140,7 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
      * @param data Data received from the server
      */
     const receiveQueryResult = (data: any) => {
-      logger.debug('Received query result', data);
+      logger('receiveQueryResult', 'debug', 'Received query result', data);
 
       let request;
       let isSubscription = false;
@@ -135,8 +157,8 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
 
       // TODO Check for errors
       if (data.code && data.code !== 200) {
-        logger.error(`Got ${data.code} error for request`);
-        logger.debug('Errored request is:', request);
+        logger('receiveQueryResult', 'error', `Got ${data.code} error for request`);
+        logger('receiveQueryResult', 'debug', 'Errored request is:', request);
         request.handler({
           code: data.code,
           message: data.message
@@ -169,29 +191,36 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
             if (typeof oldview !== 'undefined') {
               // Go through all view paths and remove any old paths
               if (oldView.paths) {
-                oldView.paths.forEach((path) => {
+                if (!view.paths || view.paths !== oldView.paths) {
+                  paths.removePath(view.paths);
+                }
+                /*TODO oldView.paths.forEach((path) => {
                   if (!view.paths || view.paths.indexOf(path) === -1) {
                     paths.removePath(path);
                   }
-                });
+                });*/
               }
             }
           },
-          (error) => logger.error('Error trying to retrieve cached view with same id. May lead to stale paths'));
+          (error) => logger('receiveQueryResult', 'error', 'Error trying to retrieve cached view with same id. May lead to stale paths'));
 
           // Add paths to tree
           if (view.paths) {
-            view.paths.forEach((path) => {
+            paths.addPath(view.paths, view._id);
+            /*TODO view.paths.forEach((path) => {
               paths.addPath(path, view._id);
-            });
+            });*/
           }
+
+          // Cache view
+          views.update(view);
         });
       }
 
       // Cache the collection options
       if (data.collectionOptions) {
         collections.update(request.collection, data.collectionOptions).catch((error) => {
-          logger.error(`Error caching collection options for ${request.collection}`, error);
+          logger('receiveQueryResult', 'error', `Error caching collection options for ${request.collection}`, error);
         });
       }
 
@@ -228,7 +257,7 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
     const subscribe = (type: MDBWeb.SubscriptionDataTypes,
         options: MDBWeb.GetOptions, handler: Function): number => {
       const id = nextId++;
-      logger.debug(`Got a new ${type} subscription request`, options);
+      logger('subscribe', 'debug', `Got a new ${type} subscription request`, options);
 
       switch(type) {
         case 'serverStatus':
@@ -252,12 +281,41 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
             handler
           };
 
-          logger.debug(`emitting ${pathQueryEvent} to server`);
+          ///TODO Check cache for path
+          // Check if the path is in the tree
+          const pathViewResult = paths.resolve(options.path);
 
-          socket.emit(eventName(pathQueryEvent), {
-            id,
-            path: options.path
-          });
+          logger('subscribe', 'debug', `Path tree lookup result is`, pathViewResult);
+
+          if (typeof pathViewResult !== 'undefined') {
+            const { value, parameters } = pathViewResult;
+            // Try and get view from cache
+            logger('subscribe', 'debug', `Trying to get the view ${value} from the cache`);
+            views.get(value).then((results) => {
+              logger('subscribe', 'debug', 'Results are', results);
+              if (typeof results[value] !== 'undefined') {
+                logger('subscribe', 'debug', `Got view for path ${options.path} from cache`);
+                handler(null, results[value]);
+              } else {
+                // Request from server
+                logger('subscribe', 'debug', `emitting ${pathQueryEvent} to server`);
+
+                // Add subscription
+                socket.emit(eventName(pathQueryEvent), {
+                  id,
+                  path: options.path
+                });
+              }
+            });
+          } else {
+            logger('subscribe', 'debug', `emitting ${pathQueryEvent} to server`);
+
+            // Add subscription
+            socket.emit(eventName(pathQueryEvent), {
+              id,
+              path: options.path
+            });
+          }
           return id;
         case 'collection':
           subscriptions[id] = {
@@ -277,6 +335,7 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
           });
           return id;
         case 'view':
+          ///TODO Check cache for view
           options = {
             collection: instance.options.viewCollection,
             filter: options

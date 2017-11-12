@@ -3,13 +3,16 @@ import {
   MDB_VIEW_NAVIGATE,
   MDB_VIEW_NAVIGATE_CANCEL,
   MDB_VIEW_DO_UPDATE,
-  MDB_VIEW_UPDATE
+  MDB_VIEW_UPDATE,
+  MDB_VIEW_DATA_UPDATE,
+  MDB_VIEW_DATA_DO_UPDATE
 } from '../actions/view';
 import {
   LoadingStatus
 } from '../../typings/client';
 
 export const viewReducer = (state: ViewState = {}, action: Action) => {
+  console.log('view reducer called', action);
   switch (action.type) {
     case MDB_VIEW_NAVIGATE:
       state = {
@@ -67,6 +70,8 @@ export const viewReducer = (state: ViewState = {}, action: Action) => {
           state.status = LoadingStatus.NEW_UPDATE;
         }
       }
+      break;
+    case MDB_VIEW_DATA_UPDATE:
       break;
   }
   return state;

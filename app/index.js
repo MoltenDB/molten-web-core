@@ -7,9 +7,10 @@ const redux_1 = require("redux");
 const moltendb_1 = require("../lib/moltendb");
 const mdbComponent_1 = require("../components/mdbComponent");
 const index_1 = require("../reducers/index");
-const app_config_1 = require("../../app.config");
+const app_config_1 = require("../app.config");
+const config_defaults_1 = require("../config.defaults");
 //const mdb = await moltenDB({
-moltendb_1.default(Object.assign({}, app_config_1.commonOptions, app_config_1.appConfig)).then((mdb) => {
+moltendb_1.default(Object.assign({}, config_defaults_1.commonConfig, app_config_1.commonMDBReactConfig)).then((mdb) => {
     const store = redux_1.createStore(index_1.default, {
         view: {},
         messages: []

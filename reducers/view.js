@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const view_1 = require("../actions/view");
 exports.viewReducer = (state = {}, action) => {
+    console.log('view reducer called', action);
     switch (action.type) {
         case view_1.MDB_VIEW_NAVIGATE:
             state = Object.assign({}, state);
@@ -47,6 +48,8 @@ exports.viewReducer = (state = {}, action) => {
                     state.status = "new update" /* NEW_UPDATE */;
                 }
             }
+            break;
+        case view_1.MDB_VIEW_DATA_UPDATE:
             break;
     }
     return state;

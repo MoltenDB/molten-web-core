@@ -18,4 +18,6 @@ exports.moltenDBOptions = {
         collection: 'collections'
     }
 };
-exports.mdbReactServerConfig = {};
+exports.mdbReactServerConfig = {
+    viewsCollectionStorage: 'default'
+};

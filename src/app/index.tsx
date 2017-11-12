@@ -7,11 +7,16 @@ import moltenDB from '../lib/moltendb';
 import rawMDBComponent from '../components/mdbComponent';
 import mdbReducer from '../reducers/index';
 
-import { commonOptions, appConfig } from '../../app.config';
+import {
+  commonMDBReactConfig as appConfig
+} from '../app.config';
+import {
+  commonConfig as defaultCommonConfig
+} from '../config.defaults';
 
 //const mdb = await moltenDB({
 moltenDB({
-  ...commonOptions,
+  ...defaultCommonConfig,
   ...appConfig
 }).then((mdb) => {
   const store = createStore(mdbReducer, {

@@ -1,4 +1,4 @@
-import * as MDBWeb from '../typings/mdb-web';
+import * as MDBWeb from '../../../typings/client';
 import * as React from 'react';
 
 import { resolveData } from '../lib/resolve';
@@ -17,7 +17,7 @@ export const options = {
  *
  * @param props Properties to use in rendering of the expression
  */
-export const render = (props: render.MDBRenderProps): React.ComponentElement | Array<React.ComponentElement> => {
+export const render = (props: renderer.MDBRenderProps): React.Component | Array<React.Component> => {
   const logger = props.mdb.logger;
   const component = props.component;
   let {data} = component;

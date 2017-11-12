@@ -22,4 +22,5 @@ export const moltenDBOptions: MDB.MoltenDBOptions = {
 };
 
 export const mdbReactServerConfig = {
+  viewsCollectionStorage: 'default'
 };

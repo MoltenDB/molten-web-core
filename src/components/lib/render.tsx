@@ -7,7 +7,7 @@ import * as MDBReact from '../../../typings/client';
 import { resolveData } from './resolve';
 import { addKey } from '../../lib/utils';
 
-interface MDBRenderProps extends MDBReact.ComponentProps {
+export interface MDBRenderProps extends MDBReact.ComponentProps {
   /// Component to be rendered
   component: MDBWeb.ViewComponent,
   /// Whether or not render function can turn an array of componenets
@@ -28,8 +28,9 @@ interface MDBChidrenRenderProps extends MDBReact.ComponentProps {
  */
 export const renderChildren = (props: MDBChidrenRenderProps): Array<React.ComponentElement> => {
   const {children} = props;
+  const logger = props.mdb.logger;
 
-  props.mdb.logger('renderChildren', 'debug', 'Rendering children', children);
+  logger('renderChildren', 'debug', 'Rendering children', children);
 
   let renderedChildren = [];
 
@@ -99,7 +100,7 @@ export const render = (props: MDBRenderProps): React.ComponentElement | Array<Re
     if (typeof props.mdb.expressions[component.expression] !== 'undefined') {
       return props.mdb.expressions[component.expression].render(props);
     } else {
-      props.mdb.logger('render', 'error',
+      logger('render', 'error',
           `No expression handler for expression ${component.expression}`);
       return null;
     }

@@ -1,3 +1,4 @@
+const webpack = require('webpack');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const package = require('./package.json');
@@ -27,7 +28,8 @@ module.exports = {
       template: 'src/app/index.ejs',
       chunksSortMode: 'dependency'
     }),
-    new ExtractTextPlugin('style.css')
+    new ExtractTextPlugin('style.css'),
+    new webpack.HotModuleReplacementPlugin()
   ],
   module: {
     rules: [

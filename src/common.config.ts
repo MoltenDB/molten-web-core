@@ -1,3 +1,5 @@
-export const commonMDBReactConfig: MDBReactServer.CommonOptions = {
+import * as MDBWeb from 'molten-web';
+
+export const commonMDBReactConfig: MDBWeb.CommonOptions = {
   viewsCollection: 'views'
 };

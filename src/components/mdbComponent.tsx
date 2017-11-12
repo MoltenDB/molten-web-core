@@ -43,6 +43,8 @@ class MoltenDBComponent extends React.Component {
   }
 
   render() {
+    const { dispatch } = this.props;
+
     this.logger.debug('MoltenDB component render called', this.props);
     if (this.props.path) {
       this.logger.debug(`Path '${this.props.path}' received in props`);
@@ -116,6 +118,7 @@ class MoltenDBComponent extends React.Component {
 
     this.logger.debug('Rendering view', this.props.state.view);
     return MDBView({
+      dispatch,
       mdb: {
         ...this.mdb,
         logger: this.logger

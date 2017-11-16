@@ -7,9 +7,15 @@ import {
   MDB_VIEW_DATA_UPDATE,
   MDB_VIEW_DATA_DO_UPDATE
 } from '../actions/view';
+
 import {
   LoadingStatus
 } from '../../typings/client';
+
+import {
+  setIn,
+  getValueInObject
+} from '../lib/utils';
 
 export const viewReducer = (state: ViewState = {}, action: Action) => {
   console.log('view reducer called', action);
@@ -72,6 +78,38 @@ export const viewReducer = (state: ViewState = {}, action: Action) => {
       }
       break;
     case MDB_VIEW_DATA_UPDATE:
+      if (typeof action.subscriptionId !== 'undefined') {
+        const subscriptions = getValueInObject(state,
+            ['view'].concat(action.path, ['subscriptions']));
+        const subscription = subscriptions.find((item) => item.id === action.subscriptionId);
+
+        console.log('got subscription', subscription, state,
+            ['view'].concat(action.path, ['subscriptions']));
+
+        if (typeof subscription !== 'undefined') {
+          if (subscription.status === LoadingStatus.LOADING) {
+            state = setIn(state, ['view'].concat(action.path), action.data);
+            state = setIn(state,
+                ['view'].concat(action.path, ['subscriptions', action.subscriptionId, 'status']),
+                LoadingStatus.LOADED);
+          } else {
+            //TODO Add to updates
+          }
+        }
+      } else {
+        if (action.data.subscriptions instanceof Array) {
+          const subscriptionPath = ['view'].concat(action.path, ['subscriptions']);
+          let subscriptions = getValueInObject(state, subscriptionPath);
+
+          if (typeof subscriptions === 'undefined') {
+            state = setIn(state, subscriptionPath, action.data.subscriptions);
+          } else {
+            state = setIn(state, subscriptionPath, subscriptions.concat(action.data.subscriptions));
+          }
+        } else { // TODO Merge?
+          state = setIn(state, ['view'].concat(action.path), action.data);
+        }
+      }
       break;
   }
   return state;

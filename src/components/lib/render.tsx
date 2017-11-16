@@ -30,7 +30,7 @@ export const renderChildren = (props: MDBChidrenRenderProps): Array<React.Compon
   const {children} = props;
   const logger = props.mdb.logger;
 
-  logger('renderChildren', 'debug', 'Rendering children', children);
+  logger('renderChildren', 'debug', 'Rendering children', children, 'with', props);
 
   let renderedChildren = [];
 
@@ -51,11 +51,20 @@ export const renderChildren = (props: MDBChidrenRenderProps): Array<React.Compon
         // the likes are enabled, so it will probably need props. What is the
         // resolve function?
         const resolved = resolveData(props, child.$ref);
-        if (typeof resolved === 'function') {
+        if (resolved === null || typeof resolved === 'undefined') {
+          renderedChildren.push(resolved);
+        } else {
+          let value = resolved.valueOf();
+          if (!(value instanceof Date) && ['string', 'number'].indexOf(typeof value) === -1) {
+            value = JSON.stringify(value);
+          }
+          renderedChildren.push(value);
+        }
+        /*XXX if (typeof resolved === 'function') {
           renderedChildren.push(resolved());
         } else {
           renderedChildren.push(resolved);
-        }
+        }*/
       } else if (child.$view) {
         const view = resolveView(props, child.$view);
         if (view) {
@@ -102,7 +111,7 @@ export const render = (props: MDBRenderProps): React.ComponentElement | Array<Re
     } else {
       logger('render', 'error',
           `No expression handler for expression ${component.expression}`);
-      return null;
+      return;
     }
   }
 

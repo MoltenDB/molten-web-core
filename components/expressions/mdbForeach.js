@@ -13,23 +13,23 @@ exports.options = {};
  * @param props Properties to use in rendering of the expression
  */
 exports.render = (props) => {
-    const logger = props.mdb.logger;
+    const logger = props.mdb.logger.id('forEach');
     const component = props.component;
     let { data } = component;
-    logger('forEach renderer', 'debug', 'Rendering forEach', component);
+    logger.debug('Rendering forEach', component);
     // Do nothing if there is nothing to render
     if (!component.children) {
         return null;
     }
     if (typeof data.$ref !== 'undefined') {
         // Resolve the data
-        logger('forEach rendered', 'debug', 'Resolving data reference', data.$ref, resolve_1.resolveData(props, data.$ref));
+        logger.debug('Resolving data reference', data.$ref, resolve_1.resolveData(props, data.$ref));
         data = resolve_1.resolveData(props, data.$ref);
     }
     // TODO Handle data as function
-    if (typeof data === 'function') {
-        data = data();
-    }
+    /*XXX? if (typeof data === 'function') {
+      data = data();
+    }*/
     if (!data) {
         // TODO Go through the children so the data handlers can resolve their data?
         return null;
@@ -45,12 +45,19 @@ exports.render = (props) => {
         if (typeof props.key !== 'undefined') {
             key = utils_1.addKey(props.key, key);
         }
+        logger.debug('rendering forEach', component.id, 'children', component.children, 'with', item, Object.assign({}, props, { key, children: component.children, data: {
+                data: {
+                    [component.id]: item,
+                },
+                previous: props.data
+            } }));
         const rendered = renderer.renderChildren(Object.assign({}, props, { key, children: component.children, data: {
                 data: {
                     [component.id]: item,
                 },
                 previous: props.data
             } }));
+        logger.debug('rendered children is', rendered);
         if (rendered instanceof Array) {
             result = result.concat(rendered);
         }
@@ -58,9 +65,12 @@ exports.render = (props) => {
             result.push(rendered);
         }
     };
+    logger.debug('data for forEach is', data);
     if (typeof data[Symbol.iterator] !== 'undefined') {
+        logger.debug('IT\'S AN INTERATOR!');
         let i = 0;
         for (const item of data) {
+            logger.debug('item', item);
             renderDataItem(item, i++);
         }
     }

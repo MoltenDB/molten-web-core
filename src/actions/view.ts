@@ -46,10 +46,12 @@ export const updateView = (data: ViewUpdateData) => {
 };
 
 
-export const updateData = (path: Array<string>, data) => {
+export const updateData = (path: Array<string>, data: { [key: string]: any },
+    subscriptionId?: number) => {
   return {
     type: MDB_VIEW_DATA_UPDATE,
     path,
+    subscriptionId,
     data
   };
 };

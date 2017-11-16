@@ -18,11 +18,11 @@ export const options = {
  * @param props Properties to use in rendering of the expression
  */
 export const render = (props: renderer.MDBRenderProps): React.Component | Array<React.Component> => {
-  const logger = props.mdb.logger;
+  const logger = props.mdb.logger.id('forEach');
   const component = props.component;
   let {data} = component;
 
-  logger('forEach renderer', 'debug', 'Rendering forEach', component);
+  logger.debug('Rendering forEach', component);
 
   // Do nothing if there is nothing to render
   if (!component.children) {
@@ -31,14 +31,14 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
 
   if (typeof data.$ref !== 'undefined') {
     // Resolve the data
-    logger('forEach rendered', 'debug', 'Resolving data reference', data.$ref, resolveData(props, data.$ref));
+    logger.debug('Resolving data reference', data.$ref, resolveData(props, data.$ref));
     data = resolveData(props, data.$ref);
   }
 
   // TODO Handle data as function
-  if (typeof data === 'function') {
+  /*XXX? if (typeof data === 'function') {
     data = data();
-  }
+  }*/
 
   if (!data) {
     // TODO Go through the children so the data handlers can resolve their data?
@@ -57,6 +57,17 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
     if (typeof props.key !== 'undefined') {
       key = addKey(props.key, key);
     }
+    logger.debug('rendering forEach', component.id, 'children', component.children, 'with', item, {
+      ...props,
+      key,
+      children: component.children,
+      data: {
+        data: {
+          [component.id]: item,
+        },
+        previous: props.data
+      }
+    });
     const rendered = renderer.renderChildren({
       ...props,
       key,
@@ -68,6 +79,7 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
         previous: props.data
       }
     });
+    logger.debug('rendered children is', rendered);
 
     if (rendered instanceof Array) {
       result = result.concat(rendered);
@@ -76,9 +88,12 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
     }
   };
 
+  logger.debug('data for forEach is', data);
   if (typeof data[Symbol.iterator] !== 'undefined') {
+    logger.debug('data has an iterator');
     let i = 0;
     for (const item of data) {
+      logger.debug('item', item);
       renderDataItem(item, i++);
     }
   } else if (data instanceof Array) {

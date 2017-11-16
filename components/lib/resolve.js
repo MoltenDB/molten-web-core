@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const utils_1 = require("../../lib/utils");
+const stringParse = require("string-parse");
 /**
  * Resolves a reference to data or a function.
  *
@@ -9,14 +10,43 @@ const utils_1 = require("../../lib/utils");
  */
 exports.resolveData = (props, reference) => {
     const logger = props.mdb.logger.id('resolveData');
+    logger.debug('resolving', reference, props);
     //XXX Should be handled in the viewCompiler
-    const parts = reference.split('.');
+    //XXXconst parts = reference.split('.');
+    const parts = stringParse(reference, {
+        split: '.',
+        blocks: {
+            property: {
+                start: '[',
+                stop: ']',
+                handle: (property) => {
+                    // Try to resolve property
+                    property = exports.resolveData(props, property[0]);
+                    logger.debug('property handler got and called valueOf to get', property, property.valueOf());
+                    property = property.valueOf();
+                    return property;
+                }
+            },
+            parameters: {
+                start: '(',
+                stop: ')',
+                split: / *, */,
+                handle: (parameters) => {
+                    logger.debug('parameters handler got', parameters);
+                }
+            }
+        }
+    });
+    logger.debug(`after string-parse '${reference}' is now`, parts);
+    /*TODO Resolve any variables [] in the parts and convert parts with parameters
+     * () into part objects?
+     */
     if (parts.length > 1 && typeof parts[0] === 'string') {
         // Check if the first is a known library
         if (typeof props.mdb.functionLibraries[parts[0]] !== 'undefined') {
         }
     }
-    logger.debug(`Trying to render ${reference} from`, props.data);
+    logger.debug('Trying to resolve', reference, '>', parts, 'with', props.data);
     // Scan through the data to try and resolve it
     let data = props.data || null;
     let referenced;
@@ -47,14 +77,18 @@ exports.resolveData = (props, reference) => {
                 }
                 break;
             }
+            logger.debug(parts[0], 'not in view data');
         }
         if (typeof data.data !== 'undefined') {
             if (typeof data.data[parts[0]] !== 'undefined') {
+                logger.debug('Found', parts[0], 'in data');
                 referenced = data.data[parts[0]];
                 break;
             }
+            logger.debug(parts[0], 'not in data');
         }
         if (typeof data.previous !== 'undefined') {
+            logger.debug('Going to previous data');
             data = data.previous;
             continue;
         }
@@ -66,7 +100,12 @@ exports.resolveData = (props, reference) => {
     logger.debug(`Resolved ${parts[0]} to`, referenced, 'Continuing with rest of path');
     parts.shift();
     if (parts.length) {
-        return utils_1.getValueInObject(referenced, parts);
+        if (typeof referenced === 'function') {
+            return referenced(parts);
+        }
+        else if (typeof referenced === 'object') {
+            return utils_1.getValueInObject(referenced, parts);
+        }
     }
     else {
         return referenced;

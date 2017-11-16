@@ -30,10 +30,11 @@ exports.navigate = (path, view) => {
 exports.updateView = (data) => {
     return Object.assign({}, data, { type: exports.MDB_VIEW_UPDATE });
 };
-exports.updateData = (path, data) => {
+exports.updateData = (path, data, subscriptionId) => {
     return {
         type: exports.MDB_VIEW_DATA_UPDATE,
         path,
+        subscriptionId,
         data
     };
 };

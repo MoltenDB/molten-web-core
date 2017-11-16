@@ -12,7 +12,8 @@ const utils_1 = require("../../lib/utils");
  */
 exports.renderChildren = (props) => {
     const { children } = props;
-    props.mdb.logger('renderChildren', 'debug', 'Rendering children', children);
+    const logger = props.mdb.logger;
+    logger('renderChildren', 'debug', 'Rendering children', children, 'with', props);
     let renderedChildren = [];
     children.forEach((child, key) => {
         if (typeof props.key !== 'undefined') {
@@ -33,12 +34,17 @@ exports.renderChildren = (props) => {
                 // the likes are enabled, so it will probably need props. What is the
                 // resolve function?
                 const resolved = resolve_1.resolveData(props, child.$ref);
-                if (typeof resolved === 'function') {
-                    renderedChildren.push(resolved());
-                }
-                else {
+                if (resolved === null || typeof resolved === 'undefined') {
                     renderedChildren.push(resolved);
                 }
+                else {
+                    renderedChildren.push(resolved.valueOf());
+                }
+                /*XXX if (typeof resolved === 'function') {
+                  renderedChildren.push(resolved());
+                } else {
+                  renderedChildren.push(resolved);
+                }*/
             }
             else if (child.$view) {
                 const view = resolveView(props, child.$view);
@@ -78,8 +84,8 @@ exports.render = (props) => {
             return props.mdb.expressions[component.expression].render(props);
         }
         else {
-            props.mdb.logger('render', 'error', `No expression handler for expression ${component.expression}`);
-            return null;
+            logger('render', 'error', `No expression handler for expression ${component.expression}`);
+            return;
         }
     }
     // Render children

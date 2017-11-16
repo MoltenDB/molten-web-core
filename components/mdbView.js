@@ -19,7 +19,7 @@ exports.MDBView = (props) => {
                     if (typeof resolvers === 'undefined') {
                         resolvers = {};
                     }
-                    resolvers[key] = props.mdb.dataHandlers[data.type].createResolver(props, data);
+                    resolvers[key] = props.mdb.dataHandlers[data.type].createResolver(props, data, props.data && props.data.path ? props.data.path.concat(['data', key]) : ['data', key]);
                 }
             }
         });
@@ -33,6 +33,7 @@ exports.MDBView = (props) => {
                 mdb,
                 dispatch,
                 data: {
+                    path: props.data.path ? props.data.path.concat(['views', props.views.template]) : ['views', props.views.template],
                     views: Object.assign({}, props.view.views, { main: props.view.main }),
                     view: templateView,
                     resolvers,
@@ -62,6 +63,8 @@ exports.MDBView = (props) => {
             dispatch,
             data: {
                 view: props.view,
+                path: (props.data && props.data.path) || [],
+                previous: props.data,
                 resolvers
             },
             children: props.view.main

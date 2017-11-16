@@ -23,7 +23,7 @@ export const MDBView = (props: render.MDBViewProps): React.Component | Array<Rea
           }
 
           resolvers[key] = props.mdb.dataHandlers[data.type].createResolver(props, data,
-            props.data && props.data.path ? props.data.path.concat(['data', key]) : ['data', key];
+            props.data && props.data.path ? props.data.path.concat(['data', key]) : ['data', key]);
         }
       }
     });
@@ -74,7 +74,7 @@ export const MDBView = (props: render.MDBViewProps): React.Component | Array<Rea
       data: {
         view: props.view,
         path: (props.data && props.data.path) || [],
-        previous: props.data
+        previous: props.data,
         resolvers
       },
       children: props.view.main

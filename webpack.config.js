@@ -39,6 +39,10 @@ module.exports = {
       },
       {
         test: /\.js$/,
+        loader: 'ify-loader'
+      },
+      {
+        test: /\.js$/,
         enforce: 'pre',
         loader: 'source-map-loader'
       },

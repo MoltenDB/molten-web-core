@@ -20,16 +20,10 @@ const loadPlotly = () => {
 
 export const render = (props): React.ComponentElement => {
   const { data, layout, config } = props;
-  console.log('graph render called', props, data, Plot);
-
-  //XXX
-  resolve(props);
 
   if (!Plot) {
     return null;
   }
-
-  console.log('checking data');
 
   if (data) {
     //TODO rename to correct name
@@ -39,7 +33,7 @@ export const render = (props): React.ComponentElement => {
     // Build what traces need to be built
     props.traces.forEach((trace) => {
       let traceObject = {
-        ...trace
+        ...trace,
         x: null,
         y: null,
         name: trace.name,
@@ -67,7 +61,8 @@ export const render = (props): React.ComponentElement => {
       for (item of data) {
         vectorKeys.forEach((key) => {
           if (typeof item === 'function') {
-            vectors[key].push(item(key).valueOf());
+            const value = item([key]);
+            vectors[key].push(value && value.valueOf());
           } else {
             vectors[key].push(item[key]);
           }
@@ -75,7 +70,6 @@ export const render = (props): React.ComponentElement => {
       }
     }
 
-    console.log('rendering a graph with', traces);
     return (<Plot
       data={traces}
       layout={layout}

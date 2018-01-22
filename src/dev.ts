@@ -1,11 +1,11 @@
-import MoltenDB from 'molten-core'
+import MoltenDB from 'molten-core';
 import moltenApiSocket from 'molten-api-websocket';
 import { socketHandler } from './socketHandler';
 import * as process from 'process';
 
 import {
   moltenDBOptions,
-  commonMDBReactConfig as commonConfig,
+  commonMDBReactConfig,
   mdbReactServerConfig as serverConfig
 } from './server.config';
 import {
@@ -24,10 +24,10 @@ import * as config from './config';
 import * as webpack from 'webpack';
 import * as webpackDevMiddleware from 'webpack-dev-middleware';
 import * as webpackHotMiddleware from 'webpack-hot-middleware';
-import * as webpackConfig from './webpack.config';
+import * as webpackConfig from './webpack.dev';
 const compiler = webpack(webpackConfig);
 
-commonConfig = Object.assign(defaultCommonConfig, commonConfig);
+const commonConfig = Object.assign(defaultCommonConfig, commonMDBReactConfig);
 
 const app = express();
 const server = http.createServer(app);

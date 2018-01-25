@@ -12,17 +12,15 @@ exports.options = {};
  * @param props Properties to use in rendering of the expression
  */
 exports.render = (props) => {
-    const logger = props.mdb.logger;
     const component = props.component;
     let { data } = component;
-    logger('with renderer', 'debug', 'Rendering with', component);
     // Do nothing if there is nothing to render
     if (!component.children) {
         return null;
     }
     if (typeof data.$ref !== 'undefined') {
         // Resolve the data
-        data = resolve_1.resolveData(props, data.$ref);
+        data = resolve_1.resolveData(props, data);
     }
     return renderer.renderChildren(Object.assign({}, props, { children: component.children, data: {
             data: {
@@ -31,3 +29,27 @@ exports.render = (props) => {
             previous: props.data
         } }));
 };
+/**
+ * Checks a with expression
+ *
+ * @param props Properties to use in rendering of the expression
+ */
+exports.check = (props) => {
+    const component = props.component;
+    let { data } = component;
+    // Do nothing if there is nothing to render
+    if (!component.children) {
+        return;
+    }
+    if (typeof data.$ref !== 'undefined') {
+        // Resolve the data
+        data = resolve_1.checkData(props, data);
+    }
+    renderer.checkChildren(Object.assign({}, props, { children: component.children, data: {
+            data: {
+                [component.id]: data
+            },
+            previous: props.data
+        } }));
+};
+//# sourceMappingURL=mdbWith.js.map

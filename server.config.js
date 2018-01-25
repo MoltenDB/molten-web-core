@@ -21,3 +21,4 @@ exports.moltenDBOptions = {
 exports.mdbReactServerConfig = {
     viewsCollectionStorage: 'default'
 };
+//# sourceMappingURL=server.config.js.map

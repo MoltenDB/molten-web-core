@@ -1,10 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const Plot = require("react-plotly.js");
+//import * as Plot from 'react-plotly.js';
 const React = require("react");
+const createPlotlyComponent = require("react-plotly.js/factory");
+const Plotly = require("plotly.js/lib/core");
+//XXX import * as PlotlyLine from 'plotly.js/lib/line';
 exports.id = 'Graph';
 exports.description = 'Graph component';
 exports.options = {};
+/*Plotly.register([
+  PlotlyLine
+]);*/
+const Plot = createPlotlyComponent(Plotly);
 //let Plot;
 let loadingPlotly = false;
 const loadPlotly = () => {
@@ -16,26 +23,17 @@ const loadPlotly = () => {
     });*/
 };
 exports.render = (props) => {
-    const { data } = props;
-    console.log('graph render called', props, data, Plot);
-    //XXX
-    exports.resolve(props);
+    const { data, layout, config } = props;
     if (!Plot) {
         return null;
     }
-    console.log('checking data');
     if (data) {
         //TODO rename to correct name
         let vectors = {};
         let traces = [];
         // Build what traces need to be built
         props.traces.forEach((trace) => {
-            let traceObject = {
-                x: null,
-                y: null,
-                name: trace.name,
-                type: trace.type || props.type,
-            };
+            let traceObject = Object.assign({}, trace, { x: null, y: null, name: trace.name, type: trace.type || props.type });
             traces.push(traceObject);
             // Set up vectors
             if (typeof vectors[trace.x] === 'undefined') {
@@ -55,7 +53,8 @@ exports.render = (props) => {
             for (item of data) {
                 vectorKeys.forEach((key) => {
                     if (typeof item === 'function') {
-                        vectors[key].push(item(key).valueOf());
+                        const value = item([key]);
+                        vectors[key].push(value && value.valueOf());
                     }
                     else {
                         vectors[key].push(item[key]);
@@ -63,10 +62,7 @@ exports.render = (props) => {
                 });
             }
         }
-        console.log('rendering a graph with', traces);
-        //  layout={layout}
-        //  config={config}
-        return (React.createElement(Plot, { data: traces }));
+        return (React.createElement(Plot, { data: traces, layout: layout, config: config }));
     }
     else {
         return null;
@@ -95,3 +91,4 @@ exports.resolve = (props) => {
         });
     }
 };
+//# sourceMappingURL=graph.js.map

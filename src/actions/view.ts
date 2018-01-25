@@ -45,13 +45,26 @@ export const updateView = (data: ViewUpdateData) => {
   };
 };
 
+interface Data {
+  error?: MDB.Error,
+  results?: Array<any>,
+  items?: { [key: string]: any },
+  [property: string]: any
+}
 
-export const updateData = (path: Array<string>, data: { [key: string]: any },
-    subscriptionId?: number) => {
+/**
+ * Update data in a view
+ *
+ * @param path Path to the data in the view from the main view
+ * @param data Data to update
+ * @param subscriptionId Subscription ID that the data was received for
+ */
+export const updateData = (path: Array<string>, data: Data,
+    subscription?: any) => {
   return {
     type: MDB_VIEW_DATA_UPDATE,
     path,
-    subscriptionId,
+    subscription,
     data
   };
 };

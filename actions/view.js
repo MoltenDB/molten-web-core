@@ -30,11 +30,19 @@ exports.navigate = (path, view) => {
 exports.updateView = (data) => {
     return Object.assign({}, data, { type: exports.MDB_VIEW_UPDATE });
 };
-exports.updateData = (path, data, subscriptionId) => {
+/**
+ * Update data in a view
+ *
+ * @param path Path to the data in the view from the main view
+ * @param data Data to update
+ * @param subscriptionId Subscription ID that the data was received for
+ */
+exports.updateData = (path, data, subscription) => {
     return {
         type: exports.MDB_VIEW_DATA_UPDATE,
         path,
-        subscriptionId,
+        subscription,
         data
     };
 };
+//# sourceMappingURL=view.js.map

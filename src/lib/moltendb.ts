@@ -1,12 +1,12 @@
 import * as MDB from 'molten-core';
-import * as MDBWeb from '../typings/mdb-web';
+import * as MDBWeb from 'molten-web';
 
 import * as MDBReact from '../../typings/client';
 
 import * as types from '../components/types/index';
 import * as expressions from '../components/expressions/index';
 import * as dataHandlers from './dataHandlers/index';
-import * as components from '../components/index';
+import * as components from '../components/components/index';
 import * as functionLibraries from './functionLibraries/index';
 
 import { attachId } from 'molten-web/lib/logger';
@@ -18,31 +18,31 @@ export interface Instance {
   /**
    * Expression components available
    */
-  expressions: { [id: string]: Expression },
+  expressions: { [id: string]: MDBWeb.Expression },
   /**
    * View components available
    */
-  components: { [id: string]: Component },
+  components: { [id: string]: MDBWeb.Component },
   /**
    * Type components available
    */
-  types: { [id: string]: Type }
+  types: { [id: string]: MDBWeb.Type }
   /**
    * Data handlers to include
    */
-  dataHandlers: { [id: string]: DataHandler },
+  dataHandlers: { [id: string]: MDBWeb.DataHandler },
   /**
    * Function libraries to include
    */
-  functions: { [id: string]: FunctionLibrary },
+  functions: { [id: string]: MDBWeb.FunctionLibrary },
   /**
    * Interface for communicating with MoltenDB server
    */
-  server: ServerInstance,
+  server: MDB.ServerInstance,
   /**
    * Options passed to MoltenDB instance
    */
-  options: Options,
+  options: MDB.Options,
   /**
    * Logger to use for logging to a common place
    */
@@ -74,13 +74,14 @@ export const MoltenDB = (options: MDBReact.Options): Promise<MDBReact.Instance> 
     options,
     logger: null,
     server: null,
-    types: Object.assign(Object.keys(types).reduce((map, type) => {
-      map[type.id] = type;
+    types: Object.assign(Object.keys(types).reduce((map, key) => {
+      const type = types[key];
+      map[type.id || key] = type;
       return map;
     }, {}), options.types),
     components: Object.assign(Object.keys(components).reduce((map, key) => {
       const component = components[key];
-      map[component.id] = component;
+      map[component.id || key] = component;
       return map;
     }, {}), options.components),
     expressions: Object.assign(Object.keys(expressions).reduce((map, key) => {
@@ -104,7 +105,7 @@ export const MoltenDB = (options: MDBReact.Options): Promise<MDBReact.Instance> 
     if (options.logger.id) {
       instance.logger = options.logger;
     } else {
-      instance.logger = attachId(logger);
+      instance.logger = attachId(options.logger);
     }
   } else {
     instance.logger = attachId(console, true);

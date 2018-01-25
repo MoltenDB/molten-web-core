@@ -9,3 +9,4 @@ exports.commonConfig = {
     viewsCollection: 'views',
     viewCollectionStorage: 'default'
 };
+//# sourceMappingURL=config.defaults.js.map

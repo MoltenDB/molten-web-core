@@ -1,3 +1,5 @@
+import deepmerge from 'deepmerge';
+
 /**
  * Get a value from within an object given the path to that object
  *
@@ -97,7 +99,7 @@ export const setIn = (object: object, path: Array<string | number>,
       && !(currentNode[last] instanceof Array)
       && typeof currentNode[last] === 'object') {
     if (merge === true) {
-      throw new Error('TODO');
+      currentNode[last] = deepmerge(currentNode[last], value);
     } else {
       currentNode[last] = {
         ...currentNode[last],

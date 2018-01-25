@@ -1,99 +1,199 @@
 import * as MDBWeb from '../typings/mdb-web';
 import * as render from './lib/render';
 
+import * as React from 'react';
+
+/*The check functions can't be called in the render cycle so they have to be called before
+will therefore have to change to a class and run the checks in the constructor and the
+componentWillReceiveProps. Can use the function that does this to update the resolver only when required,
+though could the props just be removed from createResolver and then it wouldn't have to be updated
+every time the... though data would get updated as well. Could maybe just pass the path and
+the key*/
 /**
  * Molten-web-react view component
  */
-export const MDBView = (props: render.MDBViewProps): React.Component | Array<React.Component> => {
-  const {mdb, dispatch} = props;
-  const logger = mdb.logger;
-  logger('MDBView', 'debug', props);
+class MDBView extends React.Component {
+  /// Stores the dataHandler resolver instances for the data of the view
+  protected resolvers = {};
 
-  // Set up dataHandler resolvers if any
-  let resolvers;
-  if (props.view.data) {
-    Object.keys(props.view.data).forEach((key) => {
-      const data = props.view.data[key];
+  constructor(props) {
+    super(props);
 
-      if (typeof data.type !== 'undefined') {
-        if (props.mdb.dataHandlers[data.type]
-            && props.mdb.dataHandlers[data.type].createResolver) {
-          if (typeof resolvers === 'undefined') {
-            resolvers = {};
+    // Set mdb and logger
+    this.setMdbLogger(props);
+
+    // Create resolvers for dataHandlers
+    this.updateDataHandlerResolvers(props);
+
+    // Run checkItems on view
+    this.check(props);
+  }
+
+  setMdbLogger(props) {
+    if (typeof props.mdb !== 'undefined') {
+      if (typeof this.mdb === 'undefined' || this.mdb !== props.mdb) {
+        this.mdb = props.mdb;
+        this.logger = this.mdb.logger.id('MDBView');
+      }
+    }
+  }
+
+  updateDataHandlerResolvers(newProps, oldProps?) {
+    if (typeof newProps.view === 'undefined'
+        || typeof newProps.view.data === 'undefined'
+        || typeof newProps.mdb === 'undefined') {
+      this.resolvers = {};
+      return;
+    }
+
+    let newResolvers = {};
+
+    const newData = newProps.view.data;
+    Object.keys(newData).forEach((key) => {
+      if (oldProps && oldProps.view && oldProps.view.data
+          && oldProps.view.data[key] && oldProps.view.data[key] === newData[key]
+          && typeof this.resolvers[key] === 'undefined') {
+        newResolvers[key] = this.resolvers[key];
+      } else {
+        const data = newData[key];
+        if (typeof data.type !== 'undefined') {
+          if (typeof newProps.mdb.dataHandlers[data.type] !== 'undefined') {
+            if (newProps.mdb.dataHandlers[data.type].createResolver) {
+              newResolvers[key] = newProps.mdb.dataHandlers[data.type].createResolver(newProps, data,
+                  newProps.data && newProps.data.path ? newProps.data.path.concat(['data', key]) : ['data', key], key);
+            }
+          } else {
+            this.logger.error(`Found a unknown data type ${data.type} for data ${key} in view ${newProps.view._id}`);
           }
-
-          resolvers[key] = props.mdb.dataHandlers[data.type].createResolver(props, data,
-            props.data && props.data.path ? props.data.path.concat(['data', key]) : ['data', key]);
         }
       }
     });
+
+    this.resolvers = newResolvers;
   }
 
-  if (props.view.template) {
-    // Ensure we have the template view
-    if (props.views[props.view.template]) {
-      const templateView = props.views[props.view.template];
-      // Render the view inside of the template
-      const rendered = render.render({
+  componentWillReceiveProps(newProps) {
+    this.updateDataHandlerResolvers(newProps, this.props);
+
+    this.check(newProps);
+  }
+
+  check(props) {
+    const {mdb, dispatch} = props;
+
+    if (props.view.template) {
+      // Ensure we have the template view
+      if (props.views[props.view.template]) {
+        const templateView = props.views[props.view.template];
+        // Render the view inside of the template
+        //TODO Fix call
+        const rendered = render.checkComponent({
+          mdb,
+          dispatch,
+          data: {
+            path: props.data.path ? props.data.path.concat(['views', props.views.template]) : [ 'views', props.views.template],
+            views: {
+              ...props.view.views,
+              main: props.view.main
+            },
+            view: templateView,
+            resolvers: this.resolvers,
+            previous: {
+              view: props.view,
+              previous: props.data
+            }
+          },
+          component: templateView.main
+        });
+
+        if (this.resolvers) {
+          Object.keys(this.resolvers).forEach((key) => {
+            this.resolvers[key].finishCheck();
+          });
+        }
+
+        return rendered;
+      } else {
+        //@TODO Get the template view
+        return null;
+      }
+    }
+
+    {
+      // Start iteration through view
+      render.checkChildren({
         mdb,
         dispatch,
         data: {
-          path: props.data.path ? props.data.path.concat(['views', props.views.template]) : [ 'views', props.views.template],
-          views: {
-            ...props.view.views,
-            main: props.view.main
-          },
-          view: templateView,
-          resolvers,
-          previous: {
-            view: props.view,
-            previous: props.data
-          }
+          view: props.view,
+          path: (props.data && props.data.path) || [],
+          previous: props.data,
+          resolvers: this.resolvers
         },
-        component: templateView.main
+        children: props.view.main
       });
 
-      if (resolvers) {
-        Object.keys(resolvers).forEach((key) => {
-          resolvers[key].finish();
+      if (this.resolvers) {
+        Object.keys(this.resolvers).forEach((key) => {
+          this.resolvers[key].finishCheck();
         });
       }
-
-      return rendered;
-    } else {
-      //@TODO Get the template view
-      return null;
     }
   }
 
-  {
-    // Start iteration through view
-    const rendered = render.renderChildren({
-      mdb,
-      dispatch,
-      data: {
-        view: props.view,
-        path: (props.data && props.data.path) || [],
-        previous: props.data,
-        resolvers
-      },
-      children: props.view.main
-    });
+  render() {
+    const {mdb, dispatch} = this.props;
 
-    if (resolvers) {
-      Object.keys(resolvers).forEach((key) => {
-        resolvers[key].finish();
-      });
+    if (this.props.view.template) {
+      // Ensure we have the template view
+      if (this.props.views[this.props.view.template]) {
+        const templateView = this.props.views[this.props.view.template];
+        // Render the view inside of the template
+        const rendered = render.render({
+          mdb,
+          dispatch,
+          data: {
+            path: this.props.data.path ? this.props.data.path.concat(['views', this.props.views.template]) : [ 'views', this.props.views.template],
+            views: {
+              ...this.props.view.views,
+              main: this.props.view.main
+            },
+            view: templateView,
+            resolvers: this.resolvers,
+            previous: {
+              view: this.props.view,
+              previous: this.props.data
+            }
+          },
+          component: templateView.main
+        });
+
+        return rendered;
+      } else {
+        //@TODO Get the template view
+        return null;
+      }
     }
 
-    return rendered;
-    /*return render.render({
-      mdb: props.mdb,
-      data: {
-        view: props.view
-      },
-      component: props.view.main
-    });*/
+    {
+      // Start iteration through view
+      const rendered = render.renderChildren({
+        mdb,
+        dispatch,
+        data: {
+          view: this.props.view,
+          path: (this.props.data && this.props.data.path) || [],
+          previous: this.props.data,
+          resolvers: this.resolvers
+        },
+        children: this.props.view.main
+      });
+
+      return rendered;
+    }
   }
 };
 export default MDBView;
+
+export const checkView = (props: render.MDBViewProps) => {
+};

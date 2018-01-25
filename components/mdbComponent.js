@@ -18,9 +18,7 @@ class MoltenDBComponent extends React.Component {
     }
     render() {
         const { dispatch } = this.props;
-        this.logger.debug('MoltenDB component render called', this.props);
         if (this.props.path) {
-            this.logger.debug(`Path '${this.props.path}' received in props`);
             // Check if the path loading/loaded is the same as the given
             if (this.props.state.pathLoading) {
                 if (this.props.path !== this.props.state.pathLoading) {
@@ -56,7 +54,6 @@ class MoltenDBComponent extends React.Component {
             }
         }
         else if (this.props.viewId) {
-            this.logger.debug(`View id '${this.props.viewId}' received in props`);
             if (!this.props.state.view || this.props.viewId !== this.props.view._id) {
                 this.props.dispatch(view_1.navigate(null, this.props.viewId));
                 this.mdb.server.subscribe('view', {
@@ -73,9 +70,6 @@ class MoltenDBComponent extends React.Component {
                 });
             }
         }
-        else {
-            this.logger.debug('No view received in props. Going to url');
-        }
         // Check status
         if (this.props.state && this.props.state.status === 'ERROR') {
             // TODO Change to used setting for error page
@@ -89,13 +83,9 @@ class MoltenDBComponent extends React.Component {
         if (!(this.props.state && this.props.state.view)) {
             return null;
         }
-        this.logger.debug('Rendering view', this.props.state.view);
-        return mdbView_1.default({
-            dispatch,
-            mdb: Object.assign({}, this.mdb, { logger: this.logger }),
-            view: this.props.state.view
-        });
+        return (React.createElement(mdbView_1.default, { dispatch: dispatch, mdb: Object.assign({}, this.mdb, { logger: this.logger }), view: this.props.state.view }));
     }
 }
 ;
 exports.default = MoltenDBComponent;
+//# sourceMappingURL=mdbComponent.js.map

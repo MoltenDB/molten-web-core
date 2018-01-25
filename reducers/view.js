@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const view_1 = require("../actions/view");
 const utils_1 = require("../lib/utils");
 exports.viewReducer = (state = {}, action) => {
-    console.log('view reducer called', action);
     switch (action.type) {
         case view_1.MDB_VIEW_NAVIGATE:
             state = Object.assign({}, state);
@@ -51,14 +50,15 @@ exports.viewReducer = (state = {}, action) => {
             }
             break;
         case view_1.MDB_VIEW_DATA_UPDATE:
-            if (typeof action.subscriptionId !== 'undefined') {
+            if (typeof action.subscription !== 'undefined') {
                 const subscriptions = utils_1.getValueInObject(state, ['view'].concat(action.path, ['subscriptions']));
-                const subscription = subscriptions.find((item) => item.id === action.subscriptionId);
-                console.log('got subscription', subscription, state, ['view'].concat(action.path, ['subscriptions']));
-                if (typeof subscription !== 'undefined') {
+                const subscriptionIndex = subscriptions.findIndex((item) => item.id === action.subscription.id);
+                if (subscriptionIndex !== -1) {
+                    const subscription = subscriptions[subscriptionIndex];
                     if (subscription.status === "loading" /* LOADING */) {
-                        state = utils_1.setIn(state, ['view'].concat(action.path), action.data);
-                        state = utils_1.setIn(state, ['view'].concat(action.path, ['subscriptions', action.subscriptionId, 'status']), "loaded" /* LOADED */);
+                        state = utils_1.setIn(state, ['view'].concat(action.path), action.data, true);
+                        state = utils_1.setIn(state, ['view'].concat(action.path, ['subscriptions', subscriptionIndex, 'status']), "loaded" /* LOADED */);
+                        state = utils_1.setIn(state, ['view'].concat(action.path, ['subscriptions', subscriptionIndex]), action.subscription);
                     }
                     else {
                         //TODO Add to updates
@@ -85,3 +85,4 @@ exports.viewReducer = (state = {}, action) => {
     return state;
 };
 exports.default = exports.viewReducer;
+//# sourceMappingURL=view.js.map

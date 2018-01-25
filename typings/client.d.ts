@@ -1,10 +1,14 @@
+import * as MDB from 'molten-core';
+import * as MDBWeb from 'molten-web';
+import * as MDBWsApi from 'molten-api-websocket';
+
 import { Persistence } from 'browser-store';
 
 import {
   CommonOptions,
   Expression as BaseExpression,
   DataHandler,
-  FunctionLibraries,
+  FunctionLibrary,
   Module
 } from 'molten-web';
 
@@ -16,7 +20,7 @@ export const enum LoadingStatus {
   ERROR = 'error',
   NEW_UPDATE = 'new update',
   UPDATED = 'updated'
-};
+}
 
 export type SubscriptionDataTypes = 
     'view' | /// Get a view
@@ -29,7 +33,60 @@ interface GetOptions {
   options?: any //TODO
 }
 
-export interface Expression extends BaseExpression {
+export interface Type {
+  /**
+   * Name of the type
+   */
+  label: MDB.LangString;
+
+  /**
+   * Description of the type
+   */
+  description: MDB.LangString;
+  /**
+   * Field type options to change the storage and behaviour of the field
+   */
+  options: MDB.Options;
+
+  /**
+   * Validates the given value
+   *
+   * @param name Name of the field to validate the value for
+   * @param collectionOptions Options for the collection to validate the
+   *   value for.
+   * @param value Value to validate
+   * TODO Need the entire items value for dependencies lookup
+   *
+   * @return An error, an object containing the errors for the
+   * sub-fields, or null if value is valid
+   */
+  validate: (name: string, collectionOptions: MDB.CollectionOptions,
+      value: any) => Error;
+
+  /**
+   * Returns the list of fields that the field has
+   *
+   * @param name Name of the field to get list of fields for
+   * @param collectionOptions Options for the collection to get the fields
+   *   for
+   *
+   * @returns Object containing the fields
+   */
+  fields: (props: { name: string, options: MDB.Field }) => Array<string>;
+
+  /**
+   * Return the value for the given field
+   *
+   * @param name Name of the field to return the value field
+   * @param options Field options
+   * @param item Item to return the value from
+   *
+   * @returns React node containing the element
+   */
+  value: (name: string, options: MDB.Field, item: { [key: string]: any }) => React.ReactNode;
+}
+
+export interface Expression extends MDBWeb.Expression {
   /**
    * Function to render the given expression
    *
@@ -37,16 +94,20 @@ export interface Expression extends BaseExpression {
    *
    * @returns The rendered component(s) generated from the expression
    */
-  render(props): React.ComponentElement | Array<React.ComponentElement>;
+  render(props: { [key: string]: any }): React.ReactNode | Array<React.ReactNode>;
 }
 
 export interface Component extends Module {
+  /**
+   * Native React component
+   */
+  component?: React.ReactNode
   /**
    * Render the component
    *
    * @param props Properties for the component
    */
-  render(props: Properties): React.Component | Array<React.Component>
+  render?(props: { [key: string]: any }): React.ReactNode | Array<React.ReactNode>
 }
 
 export interface Options extends CommonOptions {
@@ -65,11 +126,11 @@ export interface Options extends CommonOptions {
   /**
    * Additional data handlers to include
    */
-  dataHandlers?: { [id: string]: DataHandler },
+  dataHandlers?: { [id: string]: MDBWeb.DataHandler },
   /**
    * Additional function libraries to include
    */
-  functions?: { [id: string]: FunctionLibraries },
+  functions?: { [id: string]: MDBWeb.FunctionLibrary },
   /**
    * Name of database to store cache on client
    */
@@ -118,10 +179,14 @@ export interface ServerInstance {
   query(type: MDBWsApi.SocketQueryType, options: MDBWsApi.Query): Promise<MDBWsApi.ResultResponse>;
 }
 
+export interface Reference {
+  $ref: Array<string|{[param: string]: any}>,
+  request?: any ///TODO
+}
 
 interface ComponentData {
   /// Previous component data
-  previous: Previous
+  previous: ComponentData
   /// Previous data
   data?: { [temp: string]: any }
   /// Previous view data
@@ -129,8 +194,6 @@ interface ComponentData {
   /// Additional views
   views?: { [id: string]: MDBWeb.View }
 }
-
-export type ComponentData = DataComponentItem | ViewComponentItem;
 
 export interface ComponentProps {
   /// Instance of MDB to use

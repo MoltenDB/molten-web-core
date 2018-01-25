@@ -6,11 +6,16 @@
     "noImplicitAny": false,
     "module": "commonjs",
     "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "jsx": "react",
-    "sourceMap": false
+    "lib": ["es2015", "dom"],
+    "sourceMap": true
   },
   "include": [
-    "src/**/*"
+    "src/**/*.ts",
+    "src/**/*.tsx"
   ],
-  "exclude": []
+  "exclude": [
+    "src/spec"
+  ]
 }

@@ -7,10 +7,11 @@ const redux_1 = require("redux");
 const moltendb_1 = require("../lib/moltendb");
 const mdbComponent_1 = require("../components/mdbComponent");
 const index_1 = require("../reducers/index");
+require("./style.scss");
 const app_config_1 = require("../app.config");
 const config_defaults_1 = require("../config.defaults");
 //const mdb = await moltenDB({
-moltendb_1.default(Object.assign({}, config_defaults_1.commonConfig, app_config_1.commonMDBReactConfig)).then((mdb) => {
+moltendb_1.default(Object.assign({}, config_defaults_1.commonConfig, app_config_1.commonMDBReactConfig, app_config_1.reactAppConfig)).then((mdb) => {
     const store = redux_1.createStore(index_1.default, {
         view: {},
         messages: []
@@ -23,3 +24,4 @@ moltendb_1.default(Object.assign({}, config_defaults_1.commonConfig, app_config_
     ReactDom.render((React.createElement(react_redux_1.Provider, { store: store },
         React.createElement(MDBComponent, { mdb: mdb, path: "/" }))), document.getElementById('app'));
 });
+//# sourceMappingURL=index.js.map

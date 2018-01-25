@@ -12,23 +12,144 @@ exports.options = {};
  * @param props Properties to use in rendering of the expression
  */
 exports.render = (props) => {
-    const logger = props.mdb.logger;
     const component = props.component;
     let { data } = component;
     // Do nothing if there is nothing to render
     if (!component.children) {
         return null;
     }
-    if (typeof data.$ref !== 'undefined') {
+    if (typeof data === 'object' && typeof data.$ref !== 'undefined') {
         // Resolve the data
-        data = resolve_1.resolveData(props, data.$ref);
+        data = resolve_1.resolveData(props, data);
+        if (data !== null && typeof data !== 'undefined') {
+            data = data.valueOf();
+        }
     }
-    if (typeof data === 'function') {
-        data = data();
+    if (props.operator) {
+        if (props.operand) {
+            let operand;
+            if (typeof props.operand === 'object'
+                && typeof props.operand.$ref === 'undefined') {
+                operand = resolve_1.resolveData(props, data);
+                if (operand !== null && typeof operand !== 'undefined') {
+                    operand = operand.valueOf();
+                }
+            }
+            else {
+                operand = props.operand;
+            }
+            switch (props.operator) {
+                case '!=':
+                    if (data != operand) {
+                        return null;
+                    }
+                    break;
+                case '==':
+                    if (data == operand) {
+                        return null;
+                    }
+                    break;
+                case '<':
+                    if (data < operand) {
+                        return null;
+                    }
+                    break;
+                case '>':
+                    if (data > operand) {
+                        return null;
+                    }
+                    break;
+                case '<=':
+                    if (data <= operand) {
+                        return null;
+                    }
+                    break;
+                case '>=':
+                    if (data >= operand) {
+                        return null;
+                    }
+                    break;
+            }
+        }
     }
-    if (!data) {
-        // TODO Go through the children so the data handlers can resolve their data?
+    else if (!data) {
         return null;
     }
     return renderer.renderChildren(Object.assign({}, props, { children: component.children }));
 };
+/**
+ * Checks an if expression
+ *
+ * @param props Properties to use in rendering of the expression
+ */
+exports.check = (props) => {
+    const component = props.component;
+    let { data } = component;
+    // Do nothing if there is nothing to render
+    if (!component.children) {
+        return;
+    }
+    if (typeof data === 'object' && typeof data.$ref !== 'undefined') {
+        // Resolve the data
+        data = resolve_1.checkData(props, data);
+        if (data !== null && typeof data !== 'undefined') {
+            data = data.valueOf();
+        }
+    }
+    if (data !== null) {
+        if (props.operator) {
+            if (props.operand) {
+                let operand;
+                if (typeof props.operand === 'object'
+                    && typeof props.operand.$ref === 'undefined') {
+                    operand = resolve_1.resolveData(props, data);
+                    if (operand !== null && typeof operand !== 'undefined') {
+                        operand = operand.valueOf();
+                    }
+                }
+                else {
+                    operand = props.operand;
+                }
+                if (operand !== null) {
+                    switch (props.operator) {
+                        case '!=':
+                            if (data == operand) {
+                                return;
+                            }
+                            break;
+                        case '==':
+                            if (data != operand) {
+                                return;
+                            }
+                            break;
+                        case '<':
+                            if (data >= operand) {
+                                return;
+                            }
+                            break;
+                        case '>':
+                            if (data <= operand) {
+                                return;
+                            }
+                            break;
+                        case '<=':
+                            if (data > operand) {
+                                return;
+                            }
+                            break;
+                        case '>=':
+                            if (data < operand) {
+                                return;
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+        if (!data) {
+            return;
+        }
+    }
+    renderer.checkChildren(Object.assign({}, props, { children: component.children }));
+};
+//# sourceMappingURL=mdbIf.js.map

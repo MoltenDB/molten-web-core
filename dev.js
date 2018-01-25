@@ -1,6 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const molten_core_1 = require("molten-core");
 const molten_api_websocket_1 = require("molten-api-websocket");
 const socketHandler_1 = require("./socketHandler");
 const process = require("process");
@@ -14,18 +13,19 @@ const path = require("path");
 const webpack = require("webpack");
 const webpackDevMiddleware = require("webpack-dev-middleware");
 const webpackHotMiddleware = require("webpack-hot-middleware");
-const webpackConfig = require("./webpack.config");
+const webpackConfig = require("./webpack.dev");
 const compiler = webpack(webpackConfig);
-server_config_1.commonMDBReactConfig = Object.assign(config_defaults_1.commonConfig, server_config_1.commonMDBReactConfig);
+const commonConfig = Object.assign(config_defaults_1.commonConfig, server_config_1.commonMDBReactConfig);
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server, {});
+const MoltenDB = require('molten-core').default;
 //TODO const mdb = await MoltenDB(moltenDBOptions);
-molten_core_1.default(server_config_1.moltenDBOptions).then((mdb) => {
+MoltenDB(server_config_1.moltenDBOptions).then((mdb) => {
     const devMiddleware = webpackDevMiddleware(compiler, {});
     // Attach webpack middlewares
-    app.use(server_config_1.commonMDBReactConfig.baseUri || '/', devMiddleware);
-    app.use(server_config_1.commonMDBReactConfig.baseUri || '/', webpackHotMiddleware(compiler));
+    app.use(commonConfig.baseUri || '/', devMiddleware);
+    app.use(commonConfig.baseUri || '/', webpackHotMiddleware(compiler));
     // Attach to * for HistoryAPI
     app.get('*', (req, res) => {
         const index = devMiddleware.fileSystem.readFileSync(path.join(webpackConfig.output.path, 'index.html'));
@@ -37,7 +37,7 @@ molten_core_1.default(server_config_1.moltenDBOptions).then((mdb) => {
         socketServer: io,
     });
     // Attach molten-web socket addon
-    return socketHandler_1.socketHandler(mdb, io, server_config_1.commonMDBReactConfig).then(() => {
+    return socketHandler_1.socketHandler(mdb, io, commonConfig).then(() => {
         // Attach the Molten Web React server
         /*MoltenWebReact(app, {
           ...commonConfig,
@@ -50,3 +50,4 @@ molten_core_1.default(server_config_1.moltenDBOptions).then((mdb) => {
     console.log('caught error', error);
     process.exit(1);
 });
+//# sourceMappingURL=dev.js.map

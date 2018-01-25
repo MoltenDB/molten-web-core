@@ -1,7 +1,8 @@
-import * as MDBWeb from '../../../typings/client';
+import * as MDBWebReact from '../../../typings/client';
+import * as MDBWeb from 'molten-web';
 import * as React from 'react';
 
-import { resolveData } from '../lib/resolve';
+import { checkData, resolveData } from '../lib/resolve';
 import * as renderer from '../lib/render';
 import { addKey } from '../../lib/utils';
 
@@ -12,17 +13,22 @@ export const description = 'Iterate through a collection of items';
 export const options = {
 };
 
+const getData = (props: renderer.MDBRenderProps): any => {
+  const component = props.component;
+};
+
+interface ForeachProps extends renderer.MDBRenderProps {
+  component: MDBWeb.ViewForeachExpression
+}
+
 /**
  * Renders a foreach expression
  *
  * @param props Properties to use in rendering of the expression
  */
-export const render = (props: renderer.MDBRenderProps): React.Component | Array<React.Component> => {
-  const logger = props.mdb.logger.id('forEach');
+export const render = (props: ForeachProps): React.ReactNode | Array<React.ReactNode> => {
   const component = props.component;
   let {data} = component;
-
-  logger.debug('Rendering forEach', component);
 
   // Do nothing if there is nothing to render
   if (!component.children) {
@@ -31,14 +37,8 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
 
   if (typeof data.$ref !== 'undefined') {
     // Resolve the data
-    logger.debug('Resolving data reference', data.$ref, resolveData(props, data.$ref));
-    data = resolveData(props, data.$ref);
+    data = resolveData(props, data);
   }
-
-  // TODO Handle data as function
-  /*XXX? if (typeof data === 'function') {
-    data = data();
-  }*/
 
   if (!data) {
     // TODO Go through the children so the data handlers can resolve their data?
@@ -57,17 +57,7 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
     if (typeof props.key !== 'undefined') {
       key = addKey(props.key, key);
     }
-    logger.debug('rendering forEach', component.id, 'children', component.children, 'with', item, {
-      ...props,
-      key,
-      children: component.children,
-      data: {
-        data: {
-          [component.id]: item,
-        },
-        previous: props.data
-      }
-    });
+
     const rendered = renderer.renderChildren({
       ...props,
       key,
@@ -79,7 +69,6 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
         previous: props.data
       }
     });
-    logger.debug('rendered children is', rendered);
 
     if (rendered instanceof Array) {
       result = result.concat(rendered);
@@ -88,12 +77,9 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
     }
   };
 
-  logger.debug('data for forEach is', data);
   if (typeof data[Symbol.iterator] !== 'undefined') {
-    logger.debug('data has an iterator');
     let i = 0;
     for (const item of data) {
-      logger.debug('item', item);
       renderDataItem(item, i++);
     }
   } else if (data instanceof Array) {
@@ -105,4 +91,66 @@ export const render = (props: renderer.MDBRenderProps): React.Component | Array<
   }
 
   return result;
+};
+
+/**
+ * Renders a foreach expression
+ *
+ * @param props Properties to use in rendering of the expression
+ */
+export const check = (props: ForeachProps): void => {
+  const component = props.component;
+  let {data} = component;
+
+  // Do nothing if there is nothing to render
+  if (!component.children) {
+    return;
+  }
+
+  if (typeof data.$ref !== 'undefined') {
+    // Resolve the data
+    data = checkData(props, data);
+  }
+
+  if (!data) {
+    // TODO Go through the children so the data handlers can resolve their data?
+    return null;
+  }
+
+  /**
+   * Render an item from the data
+   *
+   * @param item Data item to use in check
+   * @param key Key of data item
+   */
+  const checkDataItem = (item, key) => {
+    if (typeof props.key !== 'undefined') {
+      key = addKey(props.key, key);
+    }
+
+    renderer.checkChildren({
+      ...props,
+      key,
+      children: component.children,
+      data: {
+        data: {
+          [component.id]: item,
+        },
+        previous: props.data
+      }
+    });
+  };
+
+  if (typeof data[Symbol.iterator] !== 'undefined') {
+    let i = 0;
+    for (const item of data) {
+      checkDataItem(item, i++);
+    }
+  } else if (data instanceof Array) {
+    data.forEach(checkDataItem);
+  } else if (typeof data === 'object') {
+    Object.keys(data).forEach((key) => {
+      checkDataItem(data[key], key);
+    });
+  }
 };

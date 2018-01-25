@@ -163,6 +163,35 @@ test('setIn() should shallowly merge with current value if new and old values ob
   t.is(newObject.test.dont, originalObject.test.dont, 'dont has been changed');
 });
 
+test('setIn() should deppely merge with current value if new and old are values are objects and merge is true', (t) => {
+  const originalObject = {
+    test: {
+      dont: {
+        touch: 'me'
+      },
+      another: {
+        test: 'value'
+      }
+    }
+  };
+
+  const newObject = utils.setIn(originalObject, ['test'], {
+    another: 'value'
+  }, true);
+
+  t.deepEqual(newObject, {
+    test: {
+      dont: {
+        touch: 'me'
+      },
+      another: 'value'
+    }
+  }, 'newObject doesn\'t match what it should');
+
+  t.deepEqual(newObject.test.dont, originalObject.test.dont, 'dont has been changed');
+  //t.is(newObject.test.dont, originalObject.test.dont, 'dont has been changed');
+});
+
 test('setIn() should replace array value if merge not set', (t) => {
   const originalObject = {
     value: ['one', 'two']
@@ -181,6 +210,17 @@ test('setIn() should replace array value if merge set to true', (t) => {
   const newObject = utils.setIn(originalObject, ['value'], [ 'three', 'four' ], true);
 
   t.deepEqual(newObject.value, ['one', 'two', 'three', 'four']);
+});
+
+test('setIn() if editing a value in an array, the array should still be an array', (t) => {
+  const originalObject = {
+    value: ['one', 'two']
+  };
+
+  const newObject = utils.setIn(originalObject, ['value', 0], 'new');
+
+  t.truthy(newObject.value instanceof Array);
+  t.is(newObject.value[0], 'new');
 });
 
 

@@ -7,8 +7,11 @@ import moltenDB from '../lib/moltendb';
 import rawMDBComponent from '../components/mdbComponent';
 import mdbReducer from '../reducers/index';
 
+import './style.scss';
+
 import {
-  commonMDBReactConfig as appConfig
+  commonMDBReactConfig as appConfig,
+  reactAppConfig
 } from '../app.config';
 import {
   commonConfig as defaultCommonConfig
@@ -17,11 +20,12 @@ import {
 //const mdb = await moltenDB({
 moltenDB({
   ...defaultCommonConfig,
-  ...appConfig
+  ...appConfig,
+  ...reactAppConfig
 }).then((mdb) => {
   const store = createStore(mdbReducer, {
     view: {},
-    messages: []
+    //TOOD messages: []
   },
   window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__());
 

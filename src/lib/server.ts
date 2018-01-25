@@ -8,7 +8,7 @@ import createTree from 'tree-of-values';
 interface Request {
   type: MDBWeb,
   options: MDBWeb.GetOptions,
-  handler(error?: MDBWeb.Error, data?: any) => void
+  handler(error?: MDBWeb.Error, data?: any): void
 };
 
 export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance> => {
@@ -84,8 +84,15 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
         }
       };
       require.ensure('socket.io-client', () => {
+        logger.debug('Trying to attach to socket',
+            instance.options.sockAddress || window.location.origin,
+            instance.options.socketPath);
         socket = require('socket.io-client').connect(
-            instance.options.sockAddress || window.location.origin);
+          instance.options.sockAddress || window.location.origin,
+          {
+            //TODO path: instance.options.socketPath
+          }
+        );
 
         // Replay buffers
         onBuffer.forEach((item) => {
@@ -94,8 +101,8 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
         });
 
         emitBuffer.forEach((item) => {
-          logger.debug(`Emitting ${item.type} event`);
-          socket.emit(item.type, item.data)
+          logger.debug(`Emitting ${item.type} event from buffer`, item);
+          socket.emit(item.type, item.data);
         });
       });
     }
@@ -161,7 +168,7 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
         logger('receiveQueryResult', 'debug', 'Errored request is:', request);
         request.handler({
           code: data.code,
-          message: data.message
+          error: data.error
         });
 
         // TODO Handle error
@@ -213,15 +220,15 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
           }
 
           // Cache view
-          views.update(view);
+          //TODO Enable caching views.update(view);
         });
       }
 
       // Cache the collection options
       if (data.collectionOptions) {
-        collections.update(request.collection, data.collectionOptions).catch((error) => {
+        /*TODO Enable caching collections.update(data.collectionOptions).catch((error) => {
           logger('receiveQueryResult', 'error', `Error caching collection options for ${request.collection}`, error);
-        });
+        });*/
       }
 
       switch (request.type) {
@@ -232,7 +239,10 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
           request.handler(null, data.collectionOptions);
           break;
         default:
-          request.handler(null, data.results);
+          request.handler(null, {
+            results: data.results,
+            collectionOptions: data.collectionOptions
+          });
           break;
       }
 
@@ -281,7 +291,6 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
             handler
           };
 
-          ///TODO Check cache for path
           // Check if the path is in the tree
           const pathViewResult = paths.resolve(options.path);
 
@@ -335,12 +344,38 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
           });
           return id;
         case 'view':
-          ///TODO Check cache for view
           options = {
             collection: instance.options.viewCollection,
             filter: options
-          }
-          break;
+          };
+
+          subscriptions[id] = {
+            type,
+            options,
+            handler
+          };
+
+          // Check cache for view
+          //TODO Need to handle the filter differently if it is not just an ID
+          logger('subscribe', 'debug', 'Trying to get the view(s) using filter from the cache', options.filter);
+          views.get(options.filter).then((results) => {
+            logger('subscribe', 'debug', 'Results are', results);
+            if (typeof results !== 'undefined') {
+              logger('subscribe', 'debug', 'Got view(s) from cache');
+              handler(null, results);
+            } else {
+              // Request from server
+              logger('subscribe', 'debug', 'emitting read to server');
+
+              // Add subscription
+              socket.emit(eventName('query'), {
+                ...options,
+                id: id,
+                type: 'read'
+              });
+            }
+          });
+          return id;
         case 'data':
       }
 
@@ -349,6 +384,12 @@ export const server = (instance: MDBWeb.Instance): Promise<MDBWeb.ServerInstance
         options,
         handler
       };
+
+      logger('subscribe', 'debug', `emitting query to server`, {
+        ...options,
+        id: id,
+        type: 'read'
+      });
 
       // Send request to server
       // TODO Add option for subscription

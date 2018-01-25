@@ -1,10 +1,20 @@
-import * as Plot from 'react-plotly.js';
+//import * as Plot from 'react-plotly.js';
 import * as React from 'react';
+
+import * as createPlotlyComponent from 'react-plotly.js/factory';
+import * as Plotly from 'plotly.js/lib/core';
+//XXX import * as PlotlyLine from 'plotly.js/lib/line';
 
 export const id = 'Graph';
 export const description = 'Graph component';
 
 export const options = {};
+
+/*Plotly.register([
+  PlotlyLine
+]);*/
+
+const Plot = createPlotlyComponent(Plotly);
 
 //let Plot;
 let loadingPlotly = false;
@@ -18,7 +28,7 @@ const loadPlotly = () => {
   });*/
 };
 
-export const render = (props): React.ComponentElement => {
+export const render = (props): React.ReactNode => {
   const { data, layout, config } = props;
 
   if (!Plot) {

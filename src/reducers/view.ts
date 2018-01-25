@@ -18,7 +18,6 @@ import {
 } from '../lib/utils';
 
 export const viewReducer = (state: ViewState = {}, action: Action) => {
-  console.log('view reducer called', action);
   switch (action.type) {
     case MDB_VIEW_NAVIGATE:
       state = {
@@ -78,20 +77,22 @@ export const viewReducer = (state: ViewState = {}, action: Action) => {
       }
       break;
     case MDB_VIEW_DATA_UPDATE:
-      if (typeof action.subscriptionId !== 'undefined') {
+      if (typeof action.subscription !== 'undefined') {
         const subscriptions = getValueInObject(state,
             ['view'].concat(action.path, ['subscriptions']));
-        const subscription = subscriptions.find((item) => item.id === action.subscriptionId);
+        const subscriptionIndex = subscriptions.findIndex((item) => item.id === action.subscription.id);
 
-        console.log('got subscription', subscription, state,
-            ['view'].concat(action.path, ['subscriptions']));
+        if (subscriptionIndex !== -1) {
+          const subscription = subscriptions[subscriptionIndex];
 
-        if (typeof subscription !== 'undefined') {
           if (subscription.status === LoadingStatus.LOADING) {
-            state = setIn(state, ['view'].concat(action.path), action.data);
+            state = setIn(state, ['view'].concat(action.path), action.data, true);
             state = setIn(state,
-                ['view'].concat(action.path, ['subscriptions', action.subscriptionId, 'status']),
+                ['view'].concat(action.path, ['subscriptions', subscriptionIndex, 'status']),
                 LoadingStatus.LOADED);
+            state = setIn(state,
+                ['view'].concat(action.path, ['subscriptions', subscriptionIndex]),
+                action.subscription);
           } else {
             //TODO Add to updates
           }
